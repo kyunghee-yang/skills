@@ -1,0 +1,97 @@
+{
+  "skill_name": "expense-report",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "3월 법인카드 지출결의서 처리해줘. 폴더는 /Users/ykh/Documents/drive/개인경비 지출결의서/2026/202603",
+      "expected_output": "Notion 팀활동비 조회 → JSON 저장 → Python 스크립트 실행 → 분류 요약 테이블 표시. R1~R8 각 건수 표시, 수기 필요 항목 상세 표시, 생성된 xlsx 파일 경로 안내.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "notion_query_executed",
+          "type": "custom",
+          "expected": "mcp__notion__notion-query-database-view 호출됨",
+          "description": "Notion 팀활동비 DB 조회가 실행됨"
+        },
+        {
+          "name": "notion_json_saved",
+          "type": "output_contains",
+          "expected": "/tmp/expense_notion_data.json",
+          "description": "Notion 데이터가 JSON 파일로 저장됨"
+        },
+        {
+          "name": "python_script_executed",
+          "type": "output_contains",
+          "expected": "expense_report.main",
+          "description": "Python 분류 스크립트가 실행됨"
+        },
+        {
+          "name": "classification_summary_shown",
+          "type": "output_contains",
+          "expected": "R1",
+          "description": "분류 요약 테이블이 표시됨"
+        },
+        {
+          "name": "output_file_path_shown",
+          "type": "output_contains",
+          "expected": ".xlsx",
+          "description": "생성된 엑셀 파일 경로가 안내됨"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "점심시간에 스타벅스에서 카드 쓴 건 어떻게 분류돼? R5야 R6이야?",
+      "expected_output": "R5(카페 확인필요)로 분류됨. 카페 키워드가 시간대보다 우선순위가 높기 때문에 점심시간이라도 스타벅스는 R5로 분류. R6은 비카페/비PG 가맹점에만 적용.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "correct_rule_r5",
+          "type": "output_contains",
+          "expected": "R5",
+          "description": "R5(카페)가 우선임을 정확히 설명"
+        },
+        {
+          "name": "priority_explanation",
+          "type": "custom",
+          "expected": "카페 키워드가 시간대보다 우선 적용됨을 설명",
+          "description": "규칙 우선순위를 설명함"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/expense-capture /Users/ykh/Documents/drive/개인경비 지출결의서/2026/202603",
+      "expected_output": "해당 폴더에서 xlsx 파일을 찾고, Excel 요약 시트를 캡처하여 요약.png로 저장. find_xlsx_in_folder → capture_summary_sheet 순서로 실행.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "find_xlsx_called",
+          "type": "output_contains",
+          "expected": "find_xlsx_in_folder",
+          "description": "xlsx 파일 탐색 함수가 호출됨"
+        },
+        {
+          "name": "capture_called",
+          "type": "output_contains",
+          "expected": "capture_summary_sheet",
+          "description": "캡처 함수가 호출됨"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/expense /Users/ykh/Documents/drive/개인경비 지출결의서/2026/202699",
+      "expected_output": "폴더가 존재하지 않거나 xls 파일이 없으므로 에러 메시지를 출력하고 종료.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "error_detected",
+          "type": "custom",
+          "expected": "폴더 미존재 또는 xls 파일 미존재 에러 메시지 출력",
+          "description": "잘못된 경로에 대한 에러 처리"
+        }
+      ]
+    }
+  ]
+}
