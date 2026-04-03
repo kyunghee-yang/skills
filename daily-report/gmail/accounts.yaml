@@ -1,0 +1,8 @@
+# Gmail 계정 설정
+# 계정별로 이메일 주소와 설명을 관리합니다.
+# 토큰 파일은 accounts/{name}.json에 별도 저장됩니다.
+
+accounts:
+  work:
+    email: khyang@wefun.io
+    description: ''
