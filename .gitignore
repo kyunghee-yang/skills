@@ -1,0 +1,14 @@
+.DS_Store
+*-workspace/
+__pycache__/
+*.pyc
+.pytest_cache/
+.bkit/
+.cache/
+**/.cache/
+**/credentials.json
+**/token*.json
+**/accounts/*.json
+**/*.lock
+*.pdf
+**/scoring-rubric.md
