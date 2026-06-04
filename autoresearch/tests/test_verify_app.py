@@ -47,3 +47,29 @@ def test_build_report_fails_when_flow_incomplete():
     # 클릭 흐름을 끝까지 못 가면(예외로 중단) 콘솔이 깨끗해도 실패
     rep = va.build_report("u", {"errors": []}, [], flow_completed=False)
     assert rep["passed"] is False
+
+
+def test_main_exit_code_flow_fail_is_1(monkeypatch, capsys):
+    # 흐름 실패(passed=False)는 게이트 실패 exit 1 (환경오류 2 아님)
+    monkeypatch.setattr(va, "verify", lambda *a, **k: va.build_report(
+        "u", {"errors": []}, ["흐름 단계 실패: TimeoutError"], flow_completed=False))
+    import sys as _s
+    monkeypatch.setattr(_s, "argv", ["verify_app.py", "http://x"])
+    assert va.main() == 1
+
+
+def test_main_exit_code_env_error_is_2(monkeypatch):
+    def _raise(*a, **k):
+        raise ImportError("playwright 미설치")
+    monkeypatch.setattr(va, "verify", _raise)
+    import sys as _s
+    monkeypatch.setattr(_s, "argv", ["verify_app.py", "http://x"])
+    assert va.main() == 2
+
+
+def test_main_exit_code_pass_is_0(monkeypatch):
+    monkeypatch.setattr(va, "verify", lambda *a, **k: va.build_report(
+        "u", {"errors": []}, [], flow_completed=True))
+    import sys as _s
+    monkeypatch.setattr(_s, "argv", ["verify_app.py", "http://x"])
+    assert va.main() == 0

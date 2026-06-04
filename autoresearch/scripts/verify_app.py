@@ -81,13 +81,22 @@ def verify(url: str, click_texts: list[str] | None = None,
         page = browser.new_page()
         page.on("console", lambda m: messages.append({"type": m.type, "text": m.text}))
         page.on("pageerror", lambda e: page_errors.append(str(e)))
-        page.goto(url, timeout=timeout_ms)
-        for text in (click_texts or []):
-            page.get_by_text(text, exact=False).first.click(timeout=timeout_ms)
-            page.wait_for_timeout(200)
-        flow_completed = True
+        # 브라우저 기동(위)은 환경 문제 → 예외 전파(exit 2). 아래 탐색/클릭 실패는 '흐름 실패'
+        # 이므로 여기서 잡아 passed=False 리포트로 만든다(게이트 실패 exit 1, 환경오류 아님).
+        try:
+            page.goto(url, timeout=timeout_ms)
+            for text in (click_texts or []):
+                page.get_by_text(text, exact=False).first.click(timeout=timeout_ms)
+                page.wait_for_timeout(200)
+            flow_completed = True
+        except Exception as e:
+            page_errors.append(f"흐름 단계 실패: {type(e).__name__}: {e}")
+            flow_completed = False
         if screenshot:
-            page.screenshot(path=screenshot, full_page=True)
+            try:
+                page.screenshot(path=screenshot, full_page=True)
+            except Exception:
+                pass
         browser.close()
 
     return build_report(url, classify_console(messages), page_errors, flow_completed, screenshot)
