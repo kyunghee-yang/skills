@@ -158,3 +158,26 @@ def test_charset_from_headers_helper():
     hs = [{"name": "Content-Type", "value": "text/html; charset=UTF-8"}]
     assert g._charset_from_headers(hs) == "UTF-8"
     assert g._charset_from_headers([]) is None
+
+
+def _part(mime, text):
+    return {"mimeType": mime,
+            "headers": [{"name": "Content-Type", "value": mime + "; charset=utf-8"}],
+            "body": {"data": base64.urlsafe_b64encode(text.encode()).decode()}}
+
+
+def test_multipart_alternative_prefers_plain_text():
+    c = _client()
+    payload = {"mimeType": "multipart/alternative",
+               "parts": [_part("text/plain", "안녕 평문"),
+                         _part("text/html", "<div>안녕 <b>HTML</b></div>")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "안녕 평문"  # html 태그가 아닌 plain 선택
+
+
+def test_multipart_html_only_falls_back():
+    c = _client()
+    payload = {"mimeType": "multipart/alternative",
+               "parts": [_part("text/html", "<p>HTML 전용</p>")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "<p>HTML 전용</p>"  # plain 없으면 html 폴백

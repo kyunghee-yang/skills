@@ -431,7 +431,10 @@ class GmailClient:
                 part_body, part_attachments = self._extract_body_and_attachments(
                     part, message_id
                 )
-                if part_body:
+                # 첫 비어있지 않은 본문을 유지한다. multipart/alternative 는 단순→충실 순서라
+                # text/plain 이 먼저 오므로, 마지막(보통 html)로 덮어쓰지 않고 읽기 좋은
+                # plain 을 택한다. plain 이 없으면 html 이 그대로 채택된다.
+                if part_body and not body:
                     body = part_body
                 attachments.extend(part_attachments)
         else:
