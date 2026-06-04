@@ -502,7 +502,14 @@ class GmailClient:
             data = f.read()
 
         if main_type == "text":
-            attachment = MIMEText(data.decode("utf-8"), _subtype=sub_type)
+            try:
+                attachment = MIMEText(data.decode("utf-8"), _subtype=sub_type)
+            except UnicodeDecodeError:
+                # 비UTF-8 텍스트 파일은 MIMEText 로 디코딩하면 크래시한다. 바이트를 보존하는
+                # 바이너리(base64) 첨부로 폴백해 전송이 실패하지 않게 한다.
+                attachment = MIMEBase(main_type, sub_type)
+                attachment.set_payload(data)
+                encoders.encode_base64(attachment)
         elif main_type == "image":
             attachment = MIMEImage(data, _subtype=sub_type)
         elif main_type == "audio":
