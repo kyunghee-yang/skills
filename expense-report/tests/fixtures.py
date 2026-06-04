@@ -94,6 +94,29 @@ def build_sample_xls(path: str) -> str:
     return path
 
 
+def build_sample_template(path: str) -> str:
+    """writer/main 이 기대하는 양식 .xlsx 를 합성 생성한다.
+
+    실제 양식의 스타일·병합까지 똑같이 재현할 필요는 없고(테스트는 셀 '값'을 검증),
+    writer 가 이름으로 접근하는 세 시트만 있으면 된다:
+      - "1.매출내역(원본)"   : Sheet1 (메타 + 거래 원본, row 10~ 2행/건)
+      - "2.(기명카드)사용내역" : Sheet2 (분류 결과, row 6~ 1행/건)
+      - "영수증 첨부"          : run_pipeline 의 영수증 이미지 부착 대상
+    """
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    # 기본 시트를 첫 시트로 재사용
+    s1 = wb.active
+    s1.title = "1.매출내역(원본)"
+    wb.create_sheet("2.(기명카드)사용내역")
+    wb.create_sheet("영수증 첨부")
+
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    wb.save(path)
+    return path
+
+
 def build_sample_receipts(folder: str, count: int = 3) -> list[str]:
     """folder 안에 합성 영수증 이미지를 생성하고 정렬된 경로 목록을 반환한다.
 

@@ -6,7 +6,7 @@ sys.path.insert(0, src_path)
 
 import pytest
 
-from fixtures import build_sample_receipts, build_sample_xls
+from fixtures import build_sample_receipts, build_sample_template, build_sample_xls
 
 
 @pytest.fixture(scope="session")
@@ -25,3 +25,10 @@ def sample_receipts_dir(tmp_path_factory):
     folder = tmp_path_factory.mktemp("receipts")
     build_sample_receipts(str(folder), count=3)
     return str(folder)
+
+
+@pytest.fixture(scope="session")
+def sample_template(tmp_path_factory):
+    """writer/main 이 기대하는 세 시트를 가진 합성 양식 .xlsx 경로."""
+    path = tmp_path_factory.mktemp("tmpl") / "양식.xlsx"
+    return build_sample_template(str(path))

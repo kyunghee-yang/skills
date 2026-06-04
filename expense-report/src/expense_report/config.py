@@ -46,7 +46,7 @@ def _load_user_config():
 
     global DRAFTER_NAME, DEPARTMENT, CARD_LAST4
     global NOTION_USER_ID, NOTION_USER_URI
-    global TAXI_HOME_ROUTE, OUTPUT_FILENAME_TEMPLATE
+    global TAXI_HOME_ROUTE, OUTPUT_FILENAME_TEMPLATE, TEMPLATE_PATH
 
     DRAFTER_NAME = cfg.get("drafter_name", DRAFTER_NAME)
     DEPARTMENT = cfg.get("department", DEPARTMENT)
@@ -56,6 +56,9 @@ def _load_user_config():
         NOTION_USER_URI = f"user://{NOTION_USER_ID}"
     if cfg.get("taxi_destination"):
         TAXI_HOME_ROUTE = f"본사(강남) -> 집({cfg['taxi_destination']})"
+    if cfg.get("template_path"):
+        # 양식 xlsx 경로는 사용자마다 다르므로 config로 오버라이드 가능하게 한다.
+        TEMPLATE_PATH = os.path.expanduser(cfg["template_path"])
     OUTPUT_FILENAME_TEMPLATE = "{yy}년{mm}월_법인카드_하나_" + DRAFTER_NAME + ".xlsx"
 
 

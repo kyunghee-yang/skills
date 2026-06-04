@@ -150,9 +150,11 @@ def write_expense_report(
     output_path: str,
     all_transactions: Optional[list[Transaction]] = None,
     meta: Optional[XlsMeta] = None,
+    template_path: Optional[str] = None,
 ) -> None:
     warnings.filterwarnings("ignore", category=UserWarning)
-    wb = openpyxl.load_workbook(TEMPLATE_PATH)
+    # template_path 미지정 시 config 기본값(사용자 config로 오버라이드 가능)을 쓴다.
+    wb = openpyxl.load_workbook(template_path or TEMPLATE_PATH)
     sheet1 = wb["1.매출내역(원본)"]
     if meta:
         _write_sheet1_meta(sheet1, meta)

@@ -68,9 +68,13 @@ Write 도구로 `~/.config/expense-report/config.json` 파일을 생성합니다
   "is_team_leader": false,
   "notion_user_id": null,
   "taxi_destination": "부천",
-  "base_path": "/Users/홍길동/Documents/drive/개인경비 지출결의서"
+  "base_path": "/Users/홍길동/Documents/drive/개인경비 지출결의서",
+  "template_path": "/Users/홍길동/Documents/drive/개인경비 지출결의서/양식_법인카드_하나.xlsx"
 }
 ```
+
+> `template_path`는 지출결의서 양식 xlsx 경로입니다. 생략하면 코드 기본값을 쓰지만, 사용자마다
+> 양식 위치가 다르므로 본인 경로로 지정하는 것을 권장합니다.
 
 팀 리더인 경우 `notion_user_id`에 조회된 ID를 넣습니다:
 ```json
