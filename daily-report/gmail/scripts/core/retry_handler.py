@@ -66,13 +66,15 @@ def calculate_delay(
     Returns:
         계산된 지연 시간 (초)
     """
-    delay = min(base_delay * (exponential_base**attempt), max_delay)
+    delay = base_delay * (exponential_base**attempt)
 
     if jitter:
         # 0.5 ~ 1.5 범위의 지터 추가
         delay *= 0.5 + random.random()
 
-    return delay
+    # max_delay 는 상한 계약이므로 지터까지 반영한 최종 값을 캡한다.
+    # (과거에는 캡을 지터 이전에 적용해 결과가 max_delay 를 최대 1.5배 초과했다.)
+    return min(delay, max_delay)
 
 
 def is_retryable_error(error: Exception) -> bool:

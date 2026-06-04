@@ -45,6 +45,20 @@ jobs:
         working-directory: task-check
         run: python -m pytest -q
 
+  daily-report:
+    name: daily-report retry tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install pytest google-api-python-client
+      - name: Run tests
+        working-directory: daily-report
+        run: python -m pytest -q
+
   autoresearch:
     name: autoresearch scripts tests
     runs-on: ubuntu-latest
