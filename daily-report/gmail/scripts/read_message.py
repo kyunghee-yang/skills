@@ -98,7 +98,7 @@ def main():
             print(f"   Labels: {', '.join(result['label_ids'])}")
 
             if result['attachments']:
-                print(f"\n📎 첨부파일:")
+                print("\n📎 첨부파일:")
                 for att in result['attachments']:
                     size_kb = att['size'] / 1024
                     print(f"   - {att['filename']} ({size_kb:.1f} KB)")

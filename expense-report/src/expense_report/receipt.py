@@ -3,7 +3,7 @@ from typing import List, Optional
 from openpyxl.drawing.image import Image as XlImage
 from openpyxl.utils import get_column_letter
 from PIL import Image as PilImage
-from expense_report.config import RECEIPT_EXTENSIONS, RECEIPT_MAX_WIDTH_INCHES, RECEIPT_ROW_GAP
+from expense_report.config import RECEIPT_EXTENSIONS, RECEIPT_MAX_WIDTH_INCHES
 
 
 def collect_receipt_files(folder_path: str) -> List[str]:

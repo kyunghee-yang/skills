@@ -10,7 +10,6 @@ Default: 담당자=양경희 + 활성 상태 + 일정에 오늘 포함
 
 import argparse
 import json
-import sys
 from datetime import date
 
 ACTIVE_STATUSES = ["진행 중", "검토 중", "해야할 일"]

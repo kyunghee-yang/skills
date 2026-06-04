@@ -213,7 +213,7 @@ def exponential_backoff(
                         f"HTTP {e.resp.status}, {delay:.1f}초 대기"
                     )
                     time.sleep(delay)
-                except Exception as e:
+                except Exception:
                     # HttpError가 아닌 예외는 그대로 발생
                     raise
 

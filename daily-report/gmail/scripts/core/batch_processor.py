@@ -14,13 +14,11 @@ Reference:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from googleapiclient.discovery import Resource
-from googleapiclient.http import BatchHttpRequest
 
 from .quota_manager import QuotaManager, QuotaUnit, get_quota_manager
-from .retry_handler import exponential_backoff
 
 logger = logging.getLogger(__name__)
 

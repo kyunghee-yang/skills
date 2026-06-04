@@ -55,7 +55,6 @@ def score(a: dict, b: dict) -> dict:
     total_w = 0.0
     sa = sb = 0.0
     rows = []
-    noisy_only_edge = True  # 모든 우위가 노이즈 범위 안인가
     any_real_edge = False
     for k in keys:
         da, db = ma[k], mb[k]

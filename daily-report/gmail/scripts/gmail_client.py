@@ -23,7 +23,6 @@ import json
 import logging
 import mimetypes
 import os
-from datetime import datetime
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -44,7 +43,6 @@ try:
         QuotaManager,
         QuotaUnit,
         exponential_backoff,
-        RetryConfig,
         EmailCache,
         BatchProcessor,
     )
@@ -54,7 +52,6 @@ except ImportError:
         QuotaManager,
         QuotaUnit,
         exponential_backoff,
-        RetryConfig,
         EmailCache,
         BatchProcessor,
     )

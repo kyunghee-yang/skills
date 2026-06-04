@@ -1,7 +1,6 @@
 from __future__ import annotations
 import json
 import os
-import sys
 import warnings
 from collections import Counter
 from typing import Optional
@@ -16,7 +15,7 @@ from expense_report.config import (
     SHEET2_COL_USAGE, SHEET2_DATA_START_ROW,
 )
 from expense_report.matcher import NotionEntry, match_transactions
-from expense_report.parser import parse_xls, parse_xls_all, parse_xls_meta
+from expense_report.parser import parse_xls_all, parse_xls_meta
 from expense_report.receipt import attach_receipts, collect_receipt_files, validate_taxi_receipts
 from expense_report.writer import write_expense_report
 
