@@ -276,6 +276,11 @@ class GmailClient:
             if not page_token:
                 break
 
+        # 서버가 maxResults 를 초과 반환할 수 있으므로(문서상 maxResults 는 페이지 크기
+        # 힌트이며, 실제 maxResults=1 에도 전체를 반환하는 사례가 보고됨) 계약대로 상한을
+        # 강제한다. 캐시 히트 경로(cached[:max_results])와 동일하게 맞춘다.
+        messages = messages[:max_results]
+
         # Cache the results
         if use_cache and self._cache and messages:
             self._cache.set_list(self.account_name, query, messages, label_ids)
@@ -1246,7 +1251,7 @@ class ADCGmailClient:
             if not page_token:
                 break
 
-        return messages
+        return messages[:max_results]  # 서버 초과 반환 대비 상한 강제
 
     def get_profile(self) -> dict:
         result = self.service.users().getProfile(userId="me").execute()

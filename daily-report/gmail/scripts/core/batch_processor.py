@@ -449,6 +449,9 @@ class BatchProcessor:
             if not page_token:
                 break
 
+        # 서버가 maxResults 를 초과 반환할 수 있으므로 max_messages 상한을 강제한다.
+        message_ids = message_ids[:max_messages]
+
         if not message_ids:
             return BatchResult()
 
@@ -496,6 +499,9 @@ class BatchProcessor:
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
+
+        # 서버가 maxResults 를 초과 반환할 수 있으므로 max_messages 상한을 강제한다.
+        message_ids = message_ids[:max_messages]
 
         if not message_ids:
             return BatchResult()
