@@ -41,3 +41,18 @@ def test_date_format(sample_xls):
 def test_count(sample_xls):
     transactions = parse_xls(sample_xls)
     assert len(transactions) > 30
+
+
+# _parse_amount 방어적 파싱 (한 행의 비숫자 금액이 전체 파싱을 죽이지 않음)
+from expense_report.parser import _parse_amount
+
+
+def test_parse_amount_normal():
+    assert _parse_amount("10,000") == 10000
+    assert _parse_amount("12,000원") == 12000
+    assert _parse_amount("") == 0
+
+
+def test_parse_amount_non_numeric_returns_zero():
+    for bad in ["-", "N/A", "없음", "abc"]:
+        assert _parse_amount(bad) == 0
