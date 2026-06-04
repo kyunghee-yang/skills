@@ -40,3 +40,21 @@ def test_validate_taxi_no_warning_with_receipts():
 
 def test_validate_no_taxi_no_warning():
     assert validate_taxi_receipts(False, []) is None
+
+
+def test_attach_receipts_handles_more_than_26(tmp_path):
+    """영수증 27장 이상도 올바른 열(AA, AB..)에 배치되어야 한다 (열 문자 오버플로 회귀)."""
+    from PIL import Image as PilImage
+    files = []
+    for i in range(28):
+        p = tmp_path / f"r_{i:02d}.png"
+        PilImage.new("RGB", (50, 50), (200, 200, 200)).save(str(p), "PNG")
+        files.append(str(p))
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "영수증 첨부"
+    attach_receipts(ws, files)
+    assert len(ws._images) == 28
+    # 27번째(i=26) 이후 열이 'AA','AB'로 정상 확장되었는지
+    assert "AA" in ws.column_dimensions
+    assert "AB" in ws.column_dimensions

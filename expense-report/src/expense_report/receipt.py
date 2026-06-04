@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from openpyxl.drawing.image import Image as XlImage
+from openpyxl.utils import get_column_letter
 from PIL import Image as PilImage
 from expense_report.config import RECEIPT_EXTENSIONS, RECEIPT_MAX_WIDTH_INCHES, RECEIPT_ROW_GAP
 
@@ -45,7 +46,9 @@ def attach_receipts(ws, file_paths: list[str]) -> None:
         xl_img.width = new_width
         xl_img.height = new_height
 
-        # 가로 배치: 각 이미지를 다른 열에 배치
-        col_letter = chr(ord("A") + i)
+        # 가로 배치: 각 이미지를 다른 열에 배치.
+        # chr(ord("A")+i)는 27번째(i=26)부터 'Z'를 넘어 깨지므로 get_column_letter로
+        # A..Z, AA, AB.. 처럼 올바르게 확장한다(영수증이 27장 이상이어도 안전).
+        col_letter = get_column_letter(i + 1)
         ws.column_dimensions[col_letter].width = col_width_px / px_per_char
         ws.add_image(xl_img, f"{col_letter}1")
