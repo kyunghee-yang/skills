@@ -46,7 +46,7 @@ jobs:
         run: python -m pytest -q
 
   daily-report:
-    name: daily-report retry tests
+    name: daily-report tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

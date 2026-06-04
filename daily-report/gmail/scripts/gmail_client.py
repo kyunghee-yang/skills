@@ -384,7 +384,9 @@ class GmailClient:
             elif mime_type in ("text/plain", "text/html"):
                 data = payload.get("body", {}).get("data", "")
                 if data:
-                    decoded = base64.urlsafe_b64decode(data).decode("utf-8")
+                    # 메일 본문은 UTF-8 이 아닐 수 있다(latin-1, euc-kr 등). errors="replace"
+                    # 로 디코딩해 비UTF-8 한 통이 전체 메시지 파싱을 죽이지 않게 한다.
+                    decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
                     if mime_type == "text/plain" or not body:
                         body = decoded
 
