@@ -566,9 +566,11 @@ class GmailClient:
         # Record quota usage
         self._record_quota(QuotaUnit.MESSAGES_MODIFY)
 
-        # Invalidate cache for this message
+        # 메시지 캐시와 목록 캐시를 모두 무효화한다. 목록은 라벨(UNREAD/INBOX 등)로
+        # 필터되므로 라벨 변경 후 목록 캐시가 stale 해진다(send_message 와 동일한 패턴).
         if self._cache:
             self._cache.invalidate_message(self.account_name, message_id)
+            self._cache.invalidate_lists(self.account_name)
 
         return {
             "id": result["id"],
