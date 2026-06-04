@@ -29,19 +29,29 @@ def parse_tags(raw):
         return []
 
 
+def _date_part(value):
+    """Notion 날짜에서 날짜(YYYY-MM-DD) 부분만 취한다. 일시('..T09:00..')면 시간 제거."""
+    if not value or value == "None":
+        return value
+    return str(value).split("T", 1)[0]
+
+
 def schedule_includes_today(task, today_str):
     """일정에 오늘이 포함되는지 확인한다.
+
+    Notion 일정은 날짜('2026-06-04') 또는 일시('2026-06-04T09:00..+09:00')로 올 수 있으므로
+    날짜 부분만으로 비교한다(시간이 설정된 오늘 일감이 누락되지 않게).
 
     - 범위(start~end): start <= today <= end
     - 단일 날짜(start만): start == today
     - 일정 없음: False
     """
-    start = task.get("date:일정:start")
+    start = _date_part(task.get("date:일정:start"))
     if not start:
         return False
     end = task.get("date:일정:end")
     if end and end != "None":
-        return start <= today_str <= end
+        return start <= today_str <= _date_part(end)
     return start == today_str
 
 

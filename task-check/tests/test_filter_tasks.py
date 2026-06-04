@@ -135,3 +135,20 @@ def test_filter_skips_missing_assignee():
     t = _task()
     del t["담당자"]
     assert filter_active_tasks([t], TODAY) == []
+
+
+# Notion 일정이 datetime 형식이어도 날짜 단위로 오늘 판정 (matcher와 동일 형제 버그)
+def test_schedule_datetime_start_matches_today():
+    assert schedule_includes_today(
+        {"date:일정:start": "2026-06-04T09:00:00.000+09:00"}, "2026-06-04") is True
+
+
+def test_schedule_datetime_range_matches():
+    task = {"date:일정:start": "2026-06-01T00:00:00+09:00",
+            "date:일정:end": "2026-06-30T23:59:00+09:00"}
+    assert schedule_includes_today(task, "2026-06-04") is True
+
+
+def test_schedule_datetime_start_other_day():
+    assert schedule_includes_today(
+        {"date:일정:start": "2026-06-05T09:00:00+09:00"}, "2026-06-04") is False
