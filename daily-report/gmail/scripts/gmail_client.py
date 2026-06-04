@@ -823,6 +823,10 @@ class GmailClient:
             self.service.users().labels().create(userId="me", body=body).execute()
         )
 
+        # 라벨 목록 캐시(1h TTL)를 무효화해 새 라벨이 즉시 반영되게 한다.
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": result["id"],
             "name": result["name"],
@@ -855,6 +859,9 @@ class GmailClient:
             .execute()
         )
 
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": updated["id"],
             "name": updated["name"],
@@ -864,6 +871,10 @@ class GmailClient:
     def delete_label(self, label_id: str) -> dict:
         """라벨 삭제."""
         self.service.users().labels().delete(userId="me", id=label_id).execute()
+
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": label_id,
             "status": "deleted",
