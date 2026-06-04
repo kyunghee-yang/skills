@@ -60,13 +60,14 @@ _MERGE_PATTERN = [
 
 
 def _write_sheet1_meta(ws, meta: XlsMeta) -> None:
-    ws.cell(3, 5).value = meta.period
-    ws.cell(4, 6).value = meta.domestic_count
-    ws.cell(4, 14).value = meta.domestic_total
-    ws.cell(5, 6).value = meta.overseas_count
-    ws.cell(5, 14).value = meta.overseas_total
-    ws.cell(6, 6).value = meta.cancel_count
-    ws.cell(6, 14).value = meta.reject_count
+    # meta 값도 card .xls 에서 온 외부 데이터이므로 수식 인젝션 살균 대상이다.
+    ws.cell(3, 5).value = _safe_cell(meta.period)
+    ws.cell(4, 6).value = _safe_cell(meta.domestic_count)
+    ws.cell(4, 14).value = _safe_cell(meta.domestic_total)
+    ws.cell(5, 6).value = _safe_cell(meta.overseas_count)
+    ws.cell(5, 14).value = _safe_cell(meta.overseas_total)
+    ws.cell(6, 6).value = _safe_cell(meta.cancel_count)
+    ws.cell(6, 14).value = _safe_cell(meta.reject_count)
 
 
 def _copy_cell_style(src_cell, dst_cell) -> None:

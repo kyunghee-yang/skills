@@ -41,3 +41,20 @@ def test_malicious_merchant_not_stored_as_formula(sample_template):
         cell = wb["1.매출내역(원본)"].cell(10, 7)  # SHEET1_COL_MERCHANT
         assert cell.data_type != "f"          # 수식으로 저장되지 않음
         assert str(cell.value).startswith("'=")  # 텍스트로 살균됨
+
+
+def test_malicious_meta_not_stored_as_formula(sample_template):
+    from expense_report.parser import XlsMeta
+    txns = [_txn("바나프레소")]
+    cls = [Classification(usage="점심", expense_amount=10000, account="복리후생비[식비]",
+                          companion="양경희", rule_number=6)]
+    meta = XlsMeta(period='=cmd', domestic_count="39건", domestic_total="0",
+                   overseas_count="0", overseas_total="0", cancel_count="0", reject_count="0")
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "o.xlsx")
+        write_expense_report(txns, cls, out, all_transactions=txns, meta=meta,
+                             template_path=sample_template)
+        wb = openpyxl.load_workbook(out)
+        cell = wb["1.매출내역(원본)"].cell(3, 5)  # period
+        assert cell.data_type != "f"
+        assert str(cell.value).startswith("'=")
