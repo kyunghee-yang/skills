@@ -976,6 +976,10 @@ class GmailClient:
             .execute()
         )
 
+        # 발송으로 메시지 목록이 바뀌므로 목록 캐시를 무효화한다(send_message 와 동일).
+        if self._cache:
+            self._cache.invalidate_lists(self.account_name)
+
         return {
             "id": result["id"],
             "thread_id": result["threadId"],
