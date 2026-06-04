@@ -75,3 +75,17 @@ def test_all_zero_weights_is_tie_not_crash():
     res = ab_score.score(a, b)  # 과거: ZeroDivisionError
     assert res["score_a"] == 0.5 and res["score_b"] == 0.5
     assert ab_score.decide(res, margin=0.03) == "TIE"
+
+
+def test_cmd_compare_exit_codes(tmp_path):
+    import json
+    from types import SimpleNamespace
+    a = tmp_path / "a.json"; b = tmp_path / "b.json"
+    a.write_text(json.dumps(_cand("A", acc=(0.8, 2.0, True))))
+    b.write_text(json.dumps(_cand("B", acc=(0.95, 2.0, True))))
+    # B 우세 → 0(채택)
+    assert ab_score.cmd_compare(SimpleNamespace(a=str(a), b=str(b), margin=0.03)) == 0
+    # A 우세 → 1(유지): a/b 교체
+    assert ab_score.cmd_compare(SimpleNamespace(a=str(b), b=str(a), margin=0.03)) == 1
+    # 동률 → 1(유지)
+    assert ab_score.cmd_compare(SimpleNamespace(a=str(a), b=str(a), margin=0.03)) == 1

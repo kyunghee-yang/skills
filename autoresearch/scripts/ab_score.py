@@ -114,7 +114,9 @@ def cmd_compare(args) -> int:
     else:
         name = na if winner == "A" else nb
         print(f"판정: {winner} ({name}) 우세 → 채택 대상")
-    return 0
+    # 스크립트 게이트용 종료 코드: B 우세면 0(채택), A 우세/동률이면 1(유지).
+    # 예) `ab_score.py compare a.json b.json && <채택·커밋>`
+    return 0 if winner == "B" else 1
 
 
 def cmd_template(_args) -> int:

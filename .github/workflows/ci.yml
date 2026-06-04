@@ -79,4 +79,6 @@ jobs:
           python autoresearch/scripts/loop_ledger.py --ledger /tmp/led.json status
           python autoresearch/scripts/ab_score.py template > /tmp/a.json
           cp /tmp/a.json /tmp/b.json
-          python autoresearch/scripts/ab_score.py compare /tmp/a.json /tmp/b.json
+          # compare 는 B 우세 시 0, A/동률 시 1 을 반환한다(동일 입력=동률→1). 스모크에선
+          # 명령이 크래시 없이 도는지만 본다.
+          python autoresearch/scripts/ab_score.py compare /tmp/a.json /tmp/b.json || true

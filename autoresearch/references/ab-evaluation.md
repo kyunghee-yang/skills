@@ -37,6 +37,8 @@
 ```bash
 # 예: A/B 지표 JSON을 만들어 비교
 python3 autoresearch/scripts/ab_score.py compare a.json b.json
+# 종료 코드: B 우세 → 0(채택), A 우세/동률 → 1(유지). 자동 게이트로 쓸 수 있다:
+#   ab_score.py compare a.json b.json && <B 채택·커밋>
 ```
 
 지표 JSON 형식은 `ab_score.py --help` 참조. higher_is_better를 지표별로 지정한다.
