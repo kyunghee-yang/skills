@@ -72,3 +72,29 @@ def test_save_then_load_roundtrip(tmp_path):
     loaded = L.load(p)
     assert loaded["iteration"] == 1
     assert loaded["iterations"][0]["target"] == "T"
+
+
+def test_render_summary_table():
+    data = _empty()
+    L.cmd_start(data, SimpleNamespace(target="t1", hypothesis="h", research=None))
+    L.cmd_record(data, SimpleNamespace(
+        decision="adopted",
+        ab='{"metric":"pass","a":"0/6","b":"6/6"}',
+        verify=None, commit=None, reason=None))
+    out = L.render_summary(data)
+    assert "| # | 타겟 | 결정 | A/B |" in out
+    assert "| 1 | t1 | adopted | pass: 0/6 → 6/6 |" in out
+    assert "채택 1 / 전체 1" in out
+
+
+def test_render_summary_escapes_pipes():
+    data = _empty()
+    L.cmd_start(data, SimpleNamespace(target="a|b", hypothesis="h", research=None))
+    out = L.render_summary(data)
+    assert "a\\|b" in out
+
+
+def test_ab_brief_note_fallback():
+    assert L._ab_brief({"note": "n"}) == "n"
+    assert L._ab_brief(None) == ""
+    assert L._ab_brief({"metric": "m"}) == "m"

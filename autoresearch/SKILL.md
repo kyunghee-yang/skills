@@ -45,8 +45,12 @@ A/B 비교가 불가능해진다.
 
 ```bash
 python3 autoresearch/scripts/loop_ledger.py status        # 현재 상태 요약
-python3 autoresearch/scripts/loop_ledger.py next           # 다음 추천 타겟
+python3 autoresearch/scripts/loop_ledger.py next           # 다음 이터레이션 번호
+python3 autoresearch/scripts/loop_ledger.py summary        # PR/보고용 마크다운 표 생성
 ```
+
+`summary`는 누적 이터레이션을 마크다운 표(#/타겟/결정/A·B)로 출력하므로, SHIP 단계에서
+PR 설명이나 진행 보고를 일관되게 자동 생성하는 데 쓴다.
 
 원장은 저장소 루트의 `.autoresearch/ledger.json`에 저장된다(gitignore 처리). 세션이 바뀌어도
 이어서 작업할 수 있도록 채택/폐기 이력을 남긴다.

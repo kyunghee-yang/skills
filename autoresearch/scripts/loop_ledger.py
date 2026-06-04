@@ -97,6 +97,40 @@ def cmd_next(data: dict) -> None:
     print(data.get("iteration", 0) + 1)
 
 
+def _ab_brief(ab) -> str:
+    """ab 필드를 표 한 칸에 들어갈 짧은 문자열로 요약."""
+    if not ab:
+        return ""
+    if isinstance(ab, dict):
+        if "a" in ab and "b" in ab:
+            metric = ab.get("metric", "")
+            return f"{metric}: {ab['a']} → {ab['b']}".strip(": ")
+        return ab.get("note") or ab.get("metric") or ""
+    return str(ab)
+
+
+def render_summary(data: dict) -> str:
+    """원장을 PR/보고용 마크다운 표로 렌더링한다."""
+    lines = [
+        f"## AutoResearch 진행 요약 ({data.get('branch') or 'unknown'})",
+        "",
+        "| # | 타겟 | 결정 | A/B |",
+        "|---|------|------|-----|",
+    ]
+    for it in data.get("iterations", []):
+        target = str(it.get("target", "")).replace("|", "\\|")
+        ab = _ab_brief(it.get("ab")).replace("|", "\\|")
+        lines.append(f"| {it.get('n')} | {target} | {it.get('decision')} | {ab} |")
+    its = data.get("iterations", [])
+    adopted = sum(1 for i in its if i.get("decision") == "adopted")
+    lines += ["", f"채택 {adopted} / 전체 {len(its)} 이터레이션"]
+    return "\n".join(lines)
+
+
+def cmd_summary(data: dict) -> None:
+    print(render_summary(data))
+
+
 def cmd_start(data: dict, args) -> int:
     n = data.get("iteration", 0) + 1
     entry = {
@@ -160,6 +194,7 @@ def main() -> int:
 
     sub.add_parser("status")
     sub.add_parser("next")
+    sub.add_parser("summary")
 
     sp = sub.add_parser("start")
     sp.add_argument("--target", required=True)
@@ -186,6 +221,9 @@ def main() -> int:
         return 0
     if args.cmd == "next":
         cmd_next(data)
+        return 0
+    if args.cmd == "summary":
+        cmd_summary(data)
         return 0
 
     rc = 0
