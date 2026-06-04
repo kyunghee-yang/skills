@@ -89,3 +89,44 @@ def test_corrupted_cache_file_is_handled(tmp_path):
     c.set_message("acc", "m1", {"id": "m1"})
     c._message_path("acc", "m1").write_text("{not json")
     assert c.get_message("acc", "m1") is None
+
+
+def test_get_stats_counts_and_sizes(tmp_path):
+    c = _cache(tmp_path)
+    c.set_message("acc", "m1", {"id": "m1", "body": "x" * 100})
+    c.set_message("acc", "m2", {"id": "m2", "body": "y" * 100})
+    c.set_list("acc", "q", [{"id": "m1"}])
+    stats = c.get_stats("acc")
+    assert stats["total_messages"] == 2
+    assert stats["accounts"]["acc"]["messages_cached"] == 2
+    assert stats["accounts"]["acc"]["lists_cached"] == 1
+    assert stats["accounts"]["acc"]["size_bytes"] > 0
+    assert stats["total_size_bytes"] > 0
+
+
+def test_get_stats_all_accounts(tmp_path):
+    c = _cache(tmp_path)
+    c.set_message("a1", "m1", {"id": "m1"})
+    c.set_message("a2", "m2", {"id": "m2"})
+    stats = c.get_stats()  # account 미지정 → 전체
+    assert set(stats["accounts"].keys()) == {"a1", "a2"}
+    assert stats["total_messages"] == 2
+
+
+def test_invalidate_account_removes_only_that_account(tmp_path):
+    c = _cache(tmp_path)
+    c.set_message("a1", "m1", {"id": "m1"})
+    c.set_message("a2", "m2", {"id": "m2"})
+    c.invalidate_account("a1")
+    assert c.get_message("a1", "m1") is None
+    assert c.get_message("a2", "m2") is not None  # 다른 계정은 유지
+
+
+def test_invalidate_all_clears_everything(tmp_path):
+    c = _cache(tmp_path)
+    c.set_message("a1", "m1", {"id": "m1"})
+    c.set_labels("a2", [{"id": "INBOX"}])
+    c.invalidate_all()
+    assert c.get_message("a1", "m1") is None
+    assert c.get_labels("a2") is None
+    assert c.get_stats()["total_messages"] == 0
