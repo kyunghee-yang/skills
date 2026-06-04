@@ -343,10 +343,13 @@ class GmailClient:
         """
         # Check cache first (only for full/metadata formats)
         if use_cache and self._cache and format in ("full", "metadata"):
+            # 캐시에는 full 만 저장하므로(아래) 메타데이터 요청도 full 캐시(메시지 TTL 24h)로
+            # 충족한다. metadata_only=True 로 조회하면 1h TTL 때문에 1~24h 사이 유효한 full
+            # 캐시를 놓쳐 불필요하게 재요청하게 된다.
             cached = self._cache.get_message(
                 self.account_name,
                 message_id,
-                metadata_only=(format == "metadata"),
+                metadata_only=False,
             )
             if cached is not None:
                 logger.debug(f"Cache hit for message: {message_id}")
