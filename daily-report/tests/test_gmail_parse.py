@@ -105,3 +105,30 @@ def test_snippet_is_html_unescaped():
            "snippet": "Tom&#39;s &quot;report&quot; &amp; notes"}
     out = c._parse_message(msg)
     assert out["snippet"] == 'Tom\'s "report" & notes'
+
+
+def test_rfc2047_encoded_headers_decoded():
+    # 한글 제목/발신자가 RFC2047 인코딩으로 와도 디코딩되어야 한다(한국 사용자 핵심)
+    import base64
+    from email.header import Header
+    subj = Header("안녕하세요 보고서", "utf-8").encode()
+    frm = "=?UTF-8?B?" + base64.b64encode("홍길동".encode()).decode() + "?= <a@b.com>"
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "body": {},
+                       "headers": [{"name": "Subject", "value": subj},
+                                   {"name": "From", "value": frm}]}}
+    out = c._parse_message(msg)
+    assert out["subject"] == "안녕하세요 보고서"
+    assert "홍길동" in out["from"] and "a@b.com" in out["from"]
+
+
+def test_ascii_headers_unchanged():
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "body": {},
+                       "headers": [{"name": "Subject", "value": "Plain subject"},
+                                   {"name": "From", "value": "Bob <bob@x.com>"}]}}
+    out = c._parse_message(msg)
+    assert out["subject"] == "Plain subject"
+    assert out["from"] == "Bob <bob@x.com>"

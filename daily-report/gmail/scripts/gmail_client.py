@@ -76,6 +76,22 @@ def _sanitize_header(value: str) -> str:
     return str(value).replace("\r", " ").replace("\n", " ")
 
 
+def _decode_mime_header(value: str) -> str:
+    """RFC2047 인코딩된 헤더(=?UTF-8?B?..?=)를 사람이 읽는 텍스트로 디코딩한다.
+
+    Gmail API 는 헤더 값을 원본(인코딩) 그대로 주므로, 한글 등 비ASCII 제목/발신자가
+    그대로 노출되면 깨져 보인다. 디코딩 실패 시 원본을 반환한다.
+    """
+    if not value:
+        return value
+    try:
+        from email.header import decode_header, make_header
+
+        return str(make_header(decode_header(value)))
+    except Exception:
+        return value
+
+
 def _b64url_decode(data: str) -> bytes:
     """base64url 디코딩 시 누락된 패딩을 보정한다.
 
@@ -355,10 +371,14 @@ class GmailClient:
     def _parse_message(self, msg: dict) -> dict:
         """API 응답을 파싱하여 읽기 쉬운 형식으로 변환."""
         headers = {}
+        # from/to/cc/subject 는 비ASCII(한글 등)면 RFC2047 인코딩되어 오므로 디코딩한다.
+        # date/message-id 는 ASCII 라 원본 유지.
+        _decode_names = ("from", "to", "cc", "bcc", "subject")
         for header in msg.get("payload", {}).get("headers", []):
             name = header["name"].lower()
             if name in ("from", "to", "cc", "bcc", "subject", "date", "message-id"):
-                headers[name] = header["value"]
+                value = header["value"]
+                headers[name] = _decode_mime_header(value) if name in _decode_names else value
 
         body = ""
         attachments = []
