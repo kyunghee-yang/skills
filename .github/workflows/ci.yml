@@ -45,15 +45,20 @@ jobs:
         working-directory: task-check
         run: python -m pytest -q
 
-  autoresearch-smoke:
-    name: autoresearch scripts smoke
+  autoresearch:
+    name: autoresearch scripts tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Smoke-test loop_ledger and ab_score
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run unit tests
+        working-directory: autoresearch
+        run: python -m pytest -q
+      - name: CLI smoke (loop_ledger + ab_score)
         run: |
           python autoresearch/scripts/loop_ledger.py --ledger /tmp/led.json start \
             --target ci --hypothesis "ci smoke"
