@@ -289,7 +289,7 @@ class GmailClient:
         while len(messages) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(messages), 100),
+                "maxResults": min(max_results - len(messages), 500),  # Gmail list 최대 500
                 "includeSpamTrash": include_spam_trash,
             }
             if query:
@@ -755,7 +755,7 @@ class GmailClient:
         while len(threads) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(threads), 100),
+                "maxResults": min(max_results - len(threads), 500),  # Gmail list 최대 500
             }
             if query:
                 kwargs["q"] = query
@@ -961,7 +961,7 @@ class GmailClient:
         while len(drafts) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(drafts), 100),
+                "maxResults": min(max_results - len(drafts), 500),  # Gmail list 최대 500
             }
             if page_token:
                 kwargs["pageToken"] = page_token
@@ -1285,7 +1285,7 @@ class ADCGmailClient:
         while len(messages) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(messages), 100),
+                "maxResults": min(max_results - len(messages), 500),  # Gmail list 최대 500
                 "includeSpamTrash": include_spam_trash,
             }
             if query:

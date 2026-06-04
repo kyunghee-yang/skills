@@ -440,7 +440,7 @@ class BatchProcessor:
                 .list(
                     userId="me",
                     q=query,
-                    maxResults=min(100, max_messages - len(message_ids)),
+                    maxResults=min(500, max_messages - len(message_ids)),  # Gmail list 최대 500
                     pageToken=page_token,
                 )
                 .execute()
@@ -491,7 +491,7 @@ class BatchProcessor:
                 .list(
                     userId="me",
                     q=full_query,
-                    maxResults=min(100, max_messages - len(message_ids)),
+                    maxResults=min(500, max_messages - len(message_ids)),  # Gmail list 최대 500
                     pageToken=page_token,
                 )
                 .execute()
