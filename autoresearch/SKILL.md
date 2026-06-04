@@ -161,8 +161,9 @@ A/B: <지표 A→B>
 
 ## 참고 문서
 
-- `references/loop-protocol.md` — 루프 상태기계, 멈춤/고갈 규약, 원장 스키마 상세
-- `references/ab-evaluation.md` — A/B 가설 설계, 점수화, 블라인드 비교, 통계적 유의성
+- `references/loop-protocol.md` — 루프 상태기계, 멈춤/고갈 규약, 원장 스키마(+영속성 모델)
+- `references/ab-evaluation.md` — A/B 가설 설계, 점수화, 블라인드 비교, **안티-리워드해킹/과적합**
+- `references/bug-patterns.md` — 반복 결함 헌팅 체크리스트(디코딩·캐시·경계·**인젝션 싱크** 등)
 - `references/github-discovery.md` — GitHub 프로젝트 탐색·보완 절차
 - `references/browser-verification.md` — cmux 브라우저 / codex computer-use / Playwright 검증
 
