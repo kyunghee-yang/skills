@@ -22,6 +22,18 @@ from pathlib import Path
 from gmail_client import GmailClient, ADCGmailClient, get_all_accounts
 
 
+def _safe_attachment_path(save_dir: Path, filename: str) -> Path:
+    """첨부 저장 경로를 대상 디렉터리 안으로 강제한다(path traversal 방지).
+
+    첨부 파일명은 신뢰할 수 없는 외부 입력(메일 발신자가 지정)이므로 '../..' 나 절대경로가
+    들어오면 저장 디렉터리를 탈출할 수 있다. basename 만 취해 항상 save_dir 하위에 둔다.
+    """
+    name = Path(filename).name
+    if not name or name in (".", ".."):
+        name = "attachment"
+    return save_dir / name
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gmail 메시지 읽기")
     parser.add_argument("--account", "-a", help="계정 식별자")
@@ -101,7 +113,7 @@ def main():
             for att in result['attachments']:
                 if att.get('attachment_id'):
                     data = client.get_attachment(args.id, att['attachment_id'])
-                    filepath = save_path / att['filename']
+                    filepath = _safe_attachment_path(save_path, att['filename'])
                     with open(filepath, 'wb') as f:
                         f.write(data)
                     print(f"✅ 저장됨: {filepath}")
