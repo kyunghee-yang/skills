@@ -38,6 +38,19 @@ echo "$PLAYWRIGHT_BROWSERS_PATH"; ls "$PLAYWRIGHT_BROWSERS_PATH" 2>/dev/null
 
 ## Playwright 폴백 절차
 
+**바로 쓰는 도구**: `autoresearch/scripts/verify_app.py` — URL을 열고 지정한 텍스트를 순서대로
+클릭하며 콘솔/페이지 에러를 수집해 통과/실패를 판정한다(콘솔 에러 0 + 흐름 완주 = 통과).
+
+```bash
+python3 autoresearch/scripts/verify_app.py http://localhost:5173 \
+    --click "로그인" --click "계산" --screenshot /tmp/verify.png
+# 종료 코드: 통과 0 / 실패 1 / 브라우저 미가용 2  → SHIP 게이트로 사용 가능
+```
+
+판정 코어(classify_console/build_report)는 브라우저 없이도 단위 테스트되며, 브라우저 래퍼는
+Playwright sync API를 쓴다. Playwright 미설치/브라우저 빌드 불일치면 종료 코드 2로 알리니
+cmux/codex 경로나 수동 검증으로 폴백한다. 직접 스크립트를 짜려면 아래 패턴을 참고한다.
+
 브라우저 바이너리는 `$PLAYWRIGHT_BROWSERS_PATH`에 설치돼 있다. 헤드리스로 흐름을 자동화한다.
 
 ```bash

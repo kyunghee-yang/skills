@@ -169,5 +169,6 @@ A/B: <지표 A→B>
 
 ## 스크립트
 
-- `scripts/loop_ledger.py` — 이터레이션 원장 관리(status/next/start/record)
-- `scripts/ab_score.py` — A/B 후보 점수 집계 및 승자 판정
+- `scripts/loop_ledger.py` — 이터레이션 원장 관리(status/next/start/record/summary)
+- `scripts/ab_score.py` — A/B 후보 점수 집계 및 승자 판정(B 우세 시 종료코드 0)
+- `scripts/verify_app.py` — 앱을 브라우저로 클릭하며 콘솔/페이지 오류 검증(VERIFY 단계, Playwright)
