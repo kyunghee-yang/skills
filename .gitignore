@@ -12,3 +12,4 @@ __pycache__/
 **/*.lock
 *.pdf
 **/scoring-rubric.md
+.autoresearch/
