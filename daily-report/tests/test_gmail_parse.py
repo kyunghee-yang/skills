@@ -190,3 +190,27 @@ def test_snippet_null_does_not_crash():
            "payload": {"mimeType": "text/plain", "headers": [], "body": {}}}
     out = c._parse_message(msg)
     assert out["snippet"] == ""
+
+
+def test_multipart_prefers_plain_even_when_html_first():
+    # 회귀: html 파트가 plain 보다 먼저 와도 plain 을 본문으로 선택(위치 무관)
+    c = _client()
+    payload = {"mimeType": "multipart/mixed",
+               "parts": [_part("text/html", "<p>HTML 먼저</p>"),
+                         _part("text/plain", "평문 나중")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "평문 나중"
+
+
+def test_multipart_nested_alternative_prefers_plain():
+    # 중첩: mixed[ alternative[plain, html], pdf ] → plain 선택 + 첨부 수집
+    c = _client()
+    payload = {"mimeType": "multipart/mixed", "parts": [
+        {"mimeType": "multipart/alternative",
+         "parts": [_part("text/plain", "중첩 평문"), _part("text/html", "<b>중첩 html</b>")]},
+        {"mimeType": "application/pdf", "filename": "a.pdf",
+         "body": {"size": 9, "attachmentId": "x"}},
+    ]}
+    body, att = c._extract_body_and_attachments(payload, "m")
+    assert body == "중첩 평문"
+    assert len(att) == 1 and att[0]["filename"] == "a.pdf"

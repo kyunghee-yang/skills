@@ -424,49 +424,48 @@ class GmailClient:
     def _extract_body_and_attachments(
         self, payload: dict, message_id: str
     ) -> tuple[str, list[dict]]:
-        """메시지 본문과 첨부파일 추출."""
-        body = ""
-        attachments = []
+        """메시지 본문과 첨부파일 추출.
 
+        본문은 메시지 트리 전체에서 text/plain 을 우선 선택한다(순서·중첩 무관). 위치 기반
+        휴리스틱(first/last-wins)은 html 이 plain 앞에 오는 구조에서 틀리므로, plain 과 html 을
+        따로 모아 plain 이 하나라도 있으면 그 첫 번째를, 없으면 첫 html 을 본문으로 쓴다.
+        """
+        plains: list[str] = []
+        htmls: list[str] = []
+        attachments: list[dict] = []
+        self._collect_body_parts(payload, plains, htmls, attachments)
+        body = plains[0] if plains else (htmls[0] if htmls else "")
+        return body, attachments
+
+    def _collect_body_parts(self, payload: dict, plains: list, htmls: list,
+                            attachments: list) -> None:
+        """메시지 트리를 재귀 순회하며 plain/html 본문과 첨부를 수집한다."""
         mime_type = payload.get("mimeType", "")
-
         if mime_type.startswith("multipart/"):
             for part in payload.get("parts", []):
-                part_body, part_attachments = self._extract_body_and_attachments(
-                    part, message_id
-                )
-                # 첫 비어있지 않은 본문을 유지한다. multipart/alternative 는 단순→충실 순서라
-                # text/plain 이 먼저 오므로, 마지막(보통 html)로 덮어쓰지 않고 읽기 좋은
-                # plain 을 택한다. plain 이 없으면 html 이 그대로 채택된다.
-                if part_body and not body:
-                    body = part_body
-                attachments.extend(part_attachments)
-        else:
-            if payload.get("filename"):
-                attachments.append(
-                    {
-                        "filename": payload["filename"],
-                        "mime_type": mime_type,
-                        "size": payload.get("body", {}).get("size", 0),
-                        "attachment_id": payload.get("body", {}).get("attachmentId"),
-                    }
-                )
-            elif mime_type in ("text/plain", "text/html"):
-                data = payload.get("body", {}).get("data", "")
-                if data:
-                    # 본문 charset 은 utf-8 이 아닐 수 있다(euc-kr/cp949 한국 메일이 흔함).
-                    # 파트의 Content-Type charset 으로 디코딩하고, 없거나 알 수 없으면 utf-8.
-                    # errors="replace" 로 비정상 바이트가 전체 파싱을 죽이지 않게 한다.
-                    charset = _charset_from_headers(payload.get("headers", [])) or "utf-8"
-                    raw_bytes = _b64url_decode(data)
-                    try:
-                        decoded = raw_bytes.decode(charset, errors="replace")
-                    except LookupError:  # 알 수 없는 charset 이름
-                        decoded = raw_bytes.decode("utf-8", errors="replace")
-                    if mime_type == "text/plain" or not body:
-                        body = decoded
-
-        return body, attachments
+                self._collect_body_parts(part, plains, htmls, attachments)
+        elif payload.get("filename"):
+            attachments.append(
+                {
+                    "filename": payload["filename"],
+                    "mime_type": mime_type,
+                    "size": payload.get("body", {}).get("size", 0),
+                    "attachment_id": payload.get("body", {}).get("attachmentId"),
+                }
+            )
+        elif mime_type in ("text/plain", "text/html"):
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                # 본문 charset 은 utf-8 이 아닐 수 있다(euc-kr/cp949 한국 메일이 흔함).
+                # 파트의 Content-Type charset 으로 디코딩하고, 없거나 알 수 없으면 utf-8.
+                # errors="replace" 로 비정상 바이트가 전체 파싱을 죽이지 않게 한다.
+                charset = _charset_from_headers(payload.get("headers", [])) or "utf-8"
+                raw_bytes = _b64url_decode(data)
+                try:
+                    decoded = raw_bytes.decode(charset, errors="replace")
+                except LookupError:  # 알 수 없는 charset 이름
+                    decoded = raw_bytes.decode("utf-8", errors="replace")
+                (plains if mime_type == "text/plain" else htmls).append(decoded)
 
     def get_attachment(self, message_id: str, attachment_id: str) -> bytes:
         """첨부파일 다운로드.
