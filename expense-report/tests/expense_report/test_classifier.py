@@ -1,4 +1,4 @@
-from expense_report.classifier import classify, Classification
+from expense_report.classifier import classify
 from expense_report.matcher import NotionEntry
 from expense_report.parser import Transaction
 

@@ -34,8 +34,6 @@ class _Get:
 
 class _Svc:
     def users(self):
-        outer = self
-
         class _U:
             def messages(self):
                 class _M:

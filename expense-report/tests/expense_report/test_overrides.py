@@ -1,6 +1,4 @@
 """main._read_existing_overrides 커버리지(재실행 시 수기 입력 보존)."""
-import os
-import tempfile
 
 import openpyxl
 

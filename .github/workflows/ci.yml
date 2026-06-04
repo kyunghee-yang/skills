@@ -9,6 +9,19 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: lint (pyflakes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pyflakes
+        run: pip install pyflakes
+      - name: Check for dead code / undefined names
+        run: python -m pyflakes expense-report task-check autoresearch daily-report
+
   expense-report:
     name: expense-report tests (py${{ matrix.python }})
     runs-on: ubuntu-latest

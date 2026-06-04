@@ -3,7 +3,6 @@
 기존 test_main 은 run_pipeline 정상 경로만 검증하므로, 폴더명/파일 탐색의 에러 경로를
 직접 고정한다(동작 변경 없는 회귀 방지 커버리지).
 """
-import os
 
 import pytest
 
