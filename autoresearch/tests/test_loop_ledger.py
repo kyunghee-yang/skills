@@ -98,3 +98,36 @@ def test_ab_brief_note_fallback():
     assert L._ab_brief({"note": "n"}) == "n"
     assert L._ab_brief(None) == ""
     assert L._ab_brief({"metric": "m"}) == "m"
+
+
+def test_cmd_status_output(capsys):
+    data = _empty()
+    L.cmd_start(data, SimpleNamespace(target="T1", hypothesis="H1", research=None))
+    L.cmd_record(data, SimpleNamespace(decision="adopted", ab='{"winner":"B"}',
+                                       verify=None, commit="abc", reason=None))
+    L.cmd_status(data)
+    out = capsys.readouterr().out
+    assert "완료 이터레이션: 1" in out
+    assert "채택 1" in out
+    assert "다음 번호: 2" in out
+
+
+def test_cmd_status_lists_discarded(capsys):
+    data = _empty()
+    L.cmd_discard(data, SimpleNamespace(hypothesis="버린가설", reason="이유"))
+    L.cmd_status(data)
+    out = capsys.readouterr().out
+    assert "폐기 가설" in out and "버린가설" in out
+
+
+def test_cmd_next_output(capsys):
+    data = _empty()
+    data["iteration"] = 7
+    L.cmd_next(data)
+    assert capsys.readouterr().out.strip() == "8"
+
+
+def test_git_branch_returns_string():
+    # 이 저장소는 git repo 이므로 비어있지 않은 브랜치명을 반환
+    b = L.git_branch()
+    assert isinstance(b, str) and b != ""
