@@ -27,6 +27,13 @@ from expense_report.config import (  # noqa: E402
 NORMAL_COUNT = 35
 CANCELLED_COUNT = 3
 
+# main 의 notion 매칭 테스트(test_run_pipeline_with_notion_data)는 (날짜, 금액)으로
+# 매칭하므로, 결정론적으로 rule_1 이 떨어지도록 고정 앵커 거래를 첫 정상 건으로 둔다.
+# 이 값을 바꾸면 해당 테스트의 notion_data 도 함께 맞춰야 한다.
+ANCHOR_DATE = "2026.03.27"
+ANCHOR_AMOUNT = 27200
+ANCHOR_MERCHANT = "바나프레소"
+
 # 점심/저녁/카페/택시 등 분류기 규칙이 골고루 타도록 가맹점을 순환시킨다.
 _MERCHANTS = ["바나프레소", "스타벅스", "김밥천국", "카카오T일반택시(법인)",
               "네이버페이", "본죽", "투썸플레이스", "맘스터치"]
@@ -62,17 +69,24 @@ def build_sample_xls(path: str) -> str:
         ws.write(XLS_DATA_START_ROW - 1, col, f"h{col}")
 
     def write_txn(top_row: int, idx: int, status: str) -> None:
-        day = 1 + (idx % 28)
-        ws.write(top_row, XLS_COL_DATE, f"2026.03.{day:02d}")
+        # idx 0 = 고정 앵커 거래 (notion 매칭 테스트가 의존)
+        if idx == 0:
+            date, amount, merchant = ANCHOR_DATE, ANCHOR_AMOUNT, ANCHOR_MERCHANT
+        else:
+            day = 1 + (idx % 28)
+            date = f"2026.03.{day:02d}"
+            amount = 9000 + idx * 100
+            merchant = _MERCHANTS[idx % len(_MERCHANTS)]
+        ws.write(top_row, XLS_COL_DATE, date)
         ws.write(top_row, XLS_COL_TIME, _TIMES[idx % len(_TIMES)])
-        ws.write(top_row, XLS_COL_MERCHANT, _MERCHANTS[idx % len(_MERCHANTS)])
+        ws.write(top_row, XLS_COL_MERCHANT, merchant)
         ws.write(top_row, XLS_COL_CARD_NUMBER, "4201-****-****-7592")
         ws.write(top_row, XLS_COL_TYPE, "국내일반")
-        ws.write(top_row, XLS_COL_AMOUNT, f"{9000 + idx * 100:,}")
+        ws.write(top_row, XLS_COL_AMOUNT, f"{amount:,}")
         ws.write(top_row, XLS_COL_TRANSACTION_TYPE, "국내 일시불")
         ws.write(top_row, XLS_COL_APPROVAL_NUMBER, f"{10000000 + idx}")
         ws.write(top_row, XLS_COL_PURCHASE, "매입")
-        ws.write(top_row, XLS_COL_PURCHASE_DATE, f"2026.03.{day:02d}")
+        ws.write(top_row, XLS_COL_PURCHASE_DATE, date)
         ws.write(top_row, XLS_COL_INSTALLMENT, "-")
         ws.write(top_row, XLS_COL_VAT_OR_STATUS, "1000")
         # 둘째 행: 상태 ("정상"/"취소")

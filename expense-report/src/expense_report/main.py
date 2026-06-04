@@ -63,7 +63,11 @@ def _read_existing_overrides(output_path: str) -> dict[int, dict]:
     return overrides
 
 
-def run_pipeline(folder_path: str, notion_data: Optional[dict] = None) -> dict:
+def run_pipeline(
+    folder_path: str,
+    notion_data: Optional[dict] = None,
+    template_path: Optional[str] = None,
+) -> dict:
     yy, mm = _extract_year_month(folder_path)
     xls_path = _find_xls(folder_path)
     all_transactions = parse_xls_all(xls_path)
@@ -127,6 +131,7 @@ def run_pipeline(folder_path: str, notion_data: Optional[dict] = None) -> dict:
     write_expense_report(
         all_transactions, classifications, output_path,
         all_transactions=all_transactions, meta=meta,
+        template_path=template_path,
     )
 
     # Attach receipts
