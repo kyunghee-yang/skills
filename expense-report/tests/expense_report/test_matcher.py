@@ -68,3 +68,47 @@ def test_multiple_transactions_partial_match():
     assert 2 not in result
     assert result[0].companions == ["Alice"]
     assert result[1].companions == ["Bob"]
+
+
+# parse_notion_json 견고성/정상 동작
+from expense_report.matcher import parse_notion_json
+
+
+def test_parse_notion_json_basic():
+    rec = {"사용내역": "커피", "date:사용일:start": "2026-03-27", "금액": 10000,
+           "동반자": '["u1", "u2"]'}
+    out = parse_notion_json([rec], {"u1": "Alice", "u2": "Bob"})
+    assert len(out) == 1
+    assert out[0].companions == ["Alice", "Bob"]
+    assert out[0].amount == 10000
+
+
+def test_parse_notion_json_skips_non_coffee():
+    rec = {"사용내역": "택시", "date:사용일:start": "2026-03-27", "금액": 10000}
+    assert parse_notion_json([rec], {}) == []
+
+
+def test_parse_notion_json_skips_missing_date_or_amount():
+    no_date = {"사용내역": "커피", "금액": 10000}
+    no_amount = {"사용내역": "커피", "date:사용일:start": "2026-03-27"}
+    assert parse_notion_json([no_date, no_amount], {}) == []
+
+
+def test_parse_notion_json_handles_null_companion():
+    # 회귀: 동반자=None 이어도 크래시하지 않고 companions=[] 로 처리
+    rec = {"사용내역": "커피", "date:사용일:start": "2026-03-27", "금액": 10000, "동반자": None}
+    out = parse_notion_json([rec], {})
+    assert len(out) == 1 and out[0].companions == []
+
+
+def test_parse_notion_json_handles_empty_string_companion():
+    rec = {"사용내역": "커피", "date:사용일:start": "2026-03-27", "금액": 10000, "동반자": ""}
+    out = parse_notion_json([rec], {})
+    assert len(out) == 1 and out[0].companions == []
+
+
+def test_parse_notion_json_handles_list_companion():
+    rec = {"사용내역": "커피", "date:사용일:start": "2026-03-27", "금액": 10000,
+           "동반자": ["u1"]}
+    out = parse_notion_json([rec], {"u1": "Alice"})
+    assert out[0].companions == ["Alice"]

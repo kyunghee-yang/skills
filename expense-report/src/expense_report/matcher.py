@@ -44,11 +44,18 @@ def parse_notion_json(raw_results: list[dict], user_map: dict[str, str]) -> list
         amount = record.get("금액", 0)
         if not date or not amount:
             continue
-        companion_raw = record.get("동반자", "[]")
+        # Notion 은 빈 people/relation 필드를 null 로 반환할 수 있고, 문자열이 비어
+        # 있을 수도 있다. None/빈/비정상 입력을 빈 리스트로 흡수해 파싱이 죽지 않게 한다.
+        companion_raw = record.get("동반자") or "[]"
         if isinstance(companion_raw, str):
-            companion_ids = json.loads(companion_raw)
-        else:
+            try:
+                companion_ids = json.loads(companion_raw)
+            except (json.JSONDecodeError, TypeError):
+                companion_ids = []
+        elif isinstance(companion_raw, list):
             companion_ids = companion_raw
+        else:
+            companion_ids = []
         companions = [user_map.get(uid, uid) for uid in companion_ids]
         entries.append(NotionEntry(date=date, amount=amount, companions=companions))
     return entries
