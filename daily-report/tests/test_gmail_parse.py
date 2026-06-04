@@ -181,3 +181,12 @@ def test_multipart_html_only_falls_back():
                "parts": [_part("text/html", "<p>HTML 전용</p>")]}
     body, _ = c._extract_body_and_attachments(payload, "m")
     assert body == "<p>HTML 전용</p>"  # plain 없으면 html 폴백
+
+
+def test_snippet_null_does_not_crash():
+    # 회귀: "snippet": null(None) 이어도 크래시 없이 빈 문자열
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1", "snippet": None,
+           "payload": {"mimeType": "text/plain", "headers": [], "body": {}}}
+    out = c._parse_message(msg)
+    assert out["snippet"] == ""

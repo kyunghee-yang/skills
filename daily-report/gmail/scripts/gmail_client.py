@@ -404,7 +404,8 @@ class GmailClient:
             "label_ids": msg.get("labelIds", []),
             # Gmail snippet 은 HTML 이스케이프되어 오므로(&#39; &amp; 등) 언이스케이프해
             # 리포트/요약에 사람이 읽기 좋은 텍스트로 표시한다.
-            "snippet": html.unescape(msg.get("snippet", "")),
+            # `or ""`: snippet 키가 null 로 와도(None) html.unescape 크래시를 막는다.
+            "snippet": html.unescape(msg.get("snippet") or ""),
             "from": headers.get("from", ""),
             "to": headers.get("to", ""),
             "cc": headers.get("cc", ""),
