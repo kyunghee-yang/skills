@@ -66,6 +66,17 @@ ENABLE_CACHE = os.environ.get("GMAIL_ENABLE_CACHE", "true").lower() == "true"
 ENABLE_QUOTA = os.environ.get("GMAIL_ENABLE_QUOTA", "true").lower() == "true"
 
 
+def _b64url_decode(data: str) -> bytes:
+    """base64url 디코딩 시 누락된 패딩을 보정한다.
+
+    Gmail API 는 메시지 본문/첨부 data 를 패딩 없는 base64url 로 줄 때가 있어,
+    그대로 urlsafe_b64decode 하면 binascii.Error("Incorrect padding")로 크래시한다.
+    길이를 4의 배수로 맞춰 안전하게 디코딩한다.
+    """
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
+
+
 class GmailClient:
     """단일 Google 계정의 Gmail 클라이언트.
 
@@ -389,7 +400,7 @@ class GmailClient:
                 if data:
                     # 메일 본문은 UTF-8 이 아닐 수 있다(latin-1, euc-kr 등). errors="replace"
                     # 로 디코딩해 비UTF-8 한 통이 전체 메시지 파싱을 죽이지 않게 한다.
-                    decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+                    decoded = _b64url_decode(data).decode("utf-8", errors="replace")
                     if mime_type == "text/plain" or not body:
                         body = decoded
 
@@ -412,7 +423,7 @@ class GmailClient:
             .get(userId="me", messageId=message_id, id=attachment_id)
             .execute()
         )
-        return base64.urlsafe_b64decode(result["data"])
+        return _b64url_decode(result["data"])
 
     def send_message(
         self,
