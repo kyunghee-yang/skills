@@ -78,7 +78,8 @@ class BatchProcessor:
         self.service = service
         self.quota_manager = quota_manager or get_quota_manager()
         self.user = user
-        self.batch_size = min(batch_size, self.MAX_BATCH_SIZE)
+        # 하한 1 강제: batch_size<=0 이면 range(0, n, 0) 가 ValueError 로 크래시한다.
+        self.batch_size = max(1, min(batch_size, self.MAX_BATCH_SIZE))
         self.delay = delay_between_batches
 
     # =========================================================================
