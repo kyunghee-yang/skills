@@ -139,3 +139,20 @@ def test_notion_takes_priority_over_cafe():
     notion = NotionEntry(date="2026-03-27", amount=15000, companions=["양경희", "김보민"])
     r = classify(txn, notion_match=notion)
     assert r.rule_number == 1 and r.usage == "팀 커피"
+
+
+# 견고성: 빈/비정상 시간 값이 파이프라인을 죽이지 않고 수기(rule 8)로 떨어진다
+def test_empty_time_falls_through_to_manual():
+    r = classify(_txn("쿠팡", "", 5000))
+    assert r.rule_number == 8 and r.is_manual is True
+
+
+def test_malformed_time_does_not_crash():
+    for bad in ["비정상", "12", "::", "ab:cd"]:
+        r = classify(_txn("쿠팡", bad, 5000))
+        assert r.rule_number == 8
+
+
+def test_valid_time_still_classifies_by_hour():
+    assert classify(_txn("쿠팡", "13:00", 5000)).rule_number == 6   # 점심
+    assert classify(_txn("쿠팡", "18:30", 5000)).rule_number == 7   # 저녁
