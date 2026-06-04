@@ -58,3 +58,27 @@ def test_attach_receipts_handles_more_than_26(tmp_path):
     # 27번째(i=26) 이후 열이 'AA','AB'로 정상 확장되었는지
     assert "AA" in ws.column_dimensions
     assert "AB" in ws.column_dimensions
+
+
+def test_attach_receipts_resizes_large_image(tmp_path):
+    """큰 이미지(>308px)는 max_width로 축소되고 높이는 비율 유지된다."""
+    from PIL import Image as PilImage
+    from expense_report.config import RECEIPT_MAX_WIDTH_INCHES
+    max_w = int(RECEIPT_MAX_WIDTH_INCHES * 72)  # 308
+    p = tmp_path / "big.png"
+    PilImage.new("RGB", (400, 600), (255, 255, 255)).save(str(p), "PNG")
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "영수증 첨부"
+    attach_receipts(ws, [str(p)])
+    img = ws._images[0]
+    assert img.width == max_w
+    assert img.height == int(600 * (max_w / 400))  # 비율 유지
+
+
+def test_attach_receipts_keeps_small_image_size(tmp_path):
+    from PIL import Image as PilImage
+    p = tmp_path / "small.png"
+    PilImage.new("RGB", (100, 80), (255, 255, 255)).save(str(p), "PNG")
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "영수증 첨부"
+    attach_receipts(ws, [str(p)])
+    img = ws._images[0]
+    assert (img.width, img.height) == (100, 80)  # 작은 이미지는 원본 유지
