@@ -23,6 +23,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from typing import Callable, Optional, TypeVar, Any
 
@@ -94,11 +95,24 @@ def retry_after_seconds(error: Exception) -> Optional[float]:
         value = None
     if value is None:
         return None
+    # 형식 1: delay-seconds (정수 초)
     try:
         secs = float(value)
+        return secs if secs >= 0 else None
     except (ValueError, TypeError):
+        pass
+    # 형식 2: HTTP-date (RFC 7231) → 지금부터 그 시점까지의 초
+    try:
+        from email.utils import parsedate_to_datetime
+
+        when = parsedate_to_datetime(str(value))
+        if when is None:
+            return None
+        now = datetime.now(when.tzinfo) if when.tzinfo else datetime.now()
+        delta = (when - now).total_seconds()
+        return delta if delta >= 0 else 0.0
+    except (TypeError, ValueError):
         return None
-    return secs if secs >= 0 else None
 
 
 def is_retryable_error(error: Exception) -> bool:

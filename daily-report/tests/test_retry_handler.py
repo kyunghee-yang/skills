@@ -67,6 +67,24 @@ def test_retry_after_none_when_absent():
     assert rh.retry_after_seconds(Exception("no resp")) is None
 
 
-def test_retry_after_ignores_http_date_and_negative():
-    assert rh.retry_after_seconds(_FakeErr({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})) is None
+def test_retry_after_ignores_negative_seconds():
     assert rh.retry_after_seconds(_FakeErr({"retry-after": "-3"})) is None
+
+
+def test_retry_after_parses_http_date():
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+    future = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=30))
+    secs = rh.retry_after_seconds(_FakeErr({"retry-after": future}))
+    assert secs is not None and 20 <= secs <= 35
+
+
+def test_retry_after_http_date_in_past_is_zero():
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+    past = format_datetime(datetime.now(timezone.utc) - timedelta(seconds=30))
+    assert rh.retry_after_seconds(_FakeErr({"retry-after": past})) == 0.0
+
+
+def test_retry_after_junk_string_is_none():
+    assert rh.retry_after_seconds(_FakeErr({"retry-after": "soon"})) is None
