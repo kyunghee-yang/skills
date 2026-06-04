@@ -93,3 +93,18 @@ def test_attachments_make_multipart(tmp_path):
     assert msg.is_multipart()
     names = [p.get_filename() for p in msg.get_payload() if p.get_filename()]
     assert "a.txt" in names
+
+
+def test_crlf_in_headers_is_sanitized_no_injection():
+    # 회귀/보안: 제목에 CRLF+Bcc 주입 시도 → 크래시 없이 발송되고 Bcc 헤더 주입 안 됨
+    _, body, msg = _send(to="a@b.com", subject="Hello\r\nBcc: evil@x.com", body="b")
+    # 추가 Bcc 헤더가 생기지 않아야 한다(인젝션 무력화)
+    assert msg["bcc"] is None
+    # 제목은 한 줄로 접혀 안전(디코드 시 evil 토큰이 본문/헤더로 분리되지 않음)
+    subj = _hdr(msg, "subject")
+    assert "\n" not in subj and "\r" not in subj
+
+
+def test_crlf_in_to_does_not_crash():
+    _, _, msg = _send(to="a@b.com\r\nBcc: evil@x.com", subject="s", body="b")
+    assert msg["bcc"] is None

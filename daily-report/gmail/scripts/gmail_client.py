@@ -66,6 +66,18 @@ ENABLE_CACHE = os.environ.get("GMAIL_ENABLE_CACHE", "true").lower() == "true"
 ENABLE_QUOTA = os.environ.get("GMAIL_ENABLE_QUOTA", "true").lower() == "true"
 
 
+def _sanitize_header(value: str) -> str:
+    """이메일 헤더 값에서 CR/LF 를 제거한다(헤더 인젝션 방어 + 직렬화 크래시 방지).
+
+    to/subject/cc 등에 개행이 섞이면 (1) 공격자가 추가 헤더(Bcc 등)를 주입하려는 시도이거나
+    (2) 실수로 들어간 개행이며, 어느 쪽이든 email 직렬화가 HeaderParseError 로 발송을
+    중단시킨다. 개행을 공백으로 접어 안전하게 만든다.
+    """
+    if value is None:
+        return value
+    return str(value).replace("\r", " ").replace("\n", " ")
+
+
 def _b64url_decode(data: str) -> bytes:
     """base64url 디코딩 시 누락된 패딩을 보정한다.
 
@@ -466,15 +478,15 @@ class GmailClient:
         else:
             message = MIMEText(body, "html" if html else "plain", "utf-8")
 
-        message["to"] = to
-        message["subject"] = subject
+        message["to"] = _sanitize_header(to)
+        message["subject"] = _sanitize_header(subject)
         if cc:
-            message["cc"] = cc
+            message["cc"] = _sanitize_header(cc)
         if bcc:
-            message["bcc"] = bcc
+            message["bcc"] = _sanitize_header(bcc)
         if reply_to_message_id:
-            message["In-Reply-To"] = reply_to_message_id
-            message["References"] = reply_to_message_id
+            message["In-Reply-To"] = _sanitize_header(reply_to_message_id)
+            message["References"] = _sanitize_header(reply_to_message_id)
 
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
@@ -961,12 +973,12 @@ class GmailClient:
             생성된 초안 정보
         """
         message = MIMEText(body, "html" if html else "plain", "utf-8")
-        message["to"] = to
-        message["subject"] = subject
+        message["to"] = _sanitize_header(to)
+        message["subject"] = _sanitize_header(subject)
         if cc:
-            message["cc"] = cc
+            message["cc"] = _sanitize_header(cc)
         if bcc:
-            message["bcc"] = bcc
+            message["bcc"] = _sanitize_header(bcc)
 
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
