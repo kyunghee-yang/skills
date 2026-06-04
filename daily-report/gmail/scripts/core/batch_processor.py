@@ -107,15 +107,16 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            # results/errors 를 인자로 명시 바인딩한다(루프 변수 late-binding 회피, B023).
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append(response)
+                        results.append(response)
 
                 return callback
 
@@ -127,7 +128,7 @@ class BatchProcessor:
                     self.service.users()
                     .messages()
                     .get(userId="me", id=msg_id, format=format),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             # 할당량 확인 및 대기
@@ -236,15 +237,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append({"id": msg_id, "status": "trashed"})
+                        results.append({"id": msg_id, "status": "trashed"})
 
                 return callback
 
@@ -253,7 +254,7 @@ class BatchProcessor:
             for msg_id in batch_ids:
                 batch.add(
                     self.service.users().messages().trash(userId="me", id=msg_id),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.MESSAGES_TRASH
@@ -298,15 +299,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append({"id": msg_id, "status": "deleted"})
+                        results.append({"id": msg_id, "status": "deleted"})
 
                 return callback
 
@@ -315,7 +316,7 @@ class BatchProcessor:
             for msg_id in batch_ids:
                 batch.add(
                     self.service.users().messages().delete(userId="me", id=msg_id),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.MESSAGES_DELETE
@@ -364,15 +365,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(thread_id: str):
+            def callback_factory(thread_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "thread_id": thread_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append(response)
+                        results.append(response)
 
                 return callback
 
@@ -383,7 +384,7 @@ class BatchProcessor:
                     self.service.users()
                     .threads()
                     .get(userId="me", id=thread_id, format=format),
-                    callback=callback_factory(thread_id),
+                    callback=callback_factory(thread_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.THREADS_GET
