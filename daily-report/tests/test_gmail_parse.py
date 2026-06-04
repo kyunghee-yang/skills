@@ -132,3 +132,29 @@ def test_ascii_headers_unchanged():
     out = c._parse_message(msg)
     assert out["subject"] == "Plain subject"
     assert out["from"] == "Bob <bob@x.com>"
+
+
+def test_body_decoded_with_euckr_charset():
+    # euc-kr 한글 본문이 Content-Type charset 으로 정상 디코딩되어야 한다
+    c = _client()
+    data = base64.urlsafe_b64encode("안녕하세요".encode("euc-kr")).decode()
+    payload = {"mimeType": "text/plain",
+               "headers": [{"name": "Content-Type", "value": "text/plain; charset=\"euc-kr\""}],
+               "body": {"data": data}}
+    body, _ = c._extract_body_and_attachments(payload, "mid")
+    assert body == "안녕하세요"
+
+
+def test_body_defaults_utf8_when_no_charset():
+    c = _client()
+    data = base64.urlsafe_b64encode("hi 안녕".encode("utf-8")).decode()
+    payload = {"mimeType": "text/plain", "headers": [], "body": {"data": data}}
+    body, _ = c._extract_body_and_attachments(payload, "mid")
+    assert body == "hi 안녕"
+
+
+def test_charset_from_headers_helper():
+    import gmail_client as g
+    hs = [{"name": "Content-Type", "value": "text/html; charset=UTF-8"}]
+    assert g._charset_from_headers(hs) == "UTF-8"
+    assert g._charset_from_headers([]) is None

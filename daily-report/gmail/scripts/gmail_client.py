@@ -92,6 +92,18 @@ def _decode_mime_header(value: str) -> str:
         return value
 
 
+def _charset_from_headers(headers: list) -> str | None:
+    """파트 headers 의 Content-Type 에서 charset 을 추출한다(예: 'euc-kr'). 없으면 None."""
+    for h in headers or []:
+        if h.get("name", "").lower() == "content-type":
+            value = h.get("value", "")
+            for part in value.split(";"):
+                part = part.strip()
+                if part.lower().startswith("charset="):
+                    return part.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
+
 def _b64url_decode(data: str) -> bytes:
     """base64url 디코딩 시 누락된 패딩을 보정한다.
 
@@ -435,9 +447,15 @@ class GmailClient:
             elif mime_type in ("text/plain", "text/html"):
                 data = payload.get("body", {}).get("data", "")
                 if data:
-                    # 메일 본문은 UTF-8 이 아닐 수 있다(latin-1, euc-kr 등). errors="replace"
-                    # 로 디코딩해 비UTF-8 한 통이 전체 메시지 파싱을 죽이지 않게 한다.
-                    decoded = _b64url_decode(data).decode("utf-8", errors="replace")
+                    # 본문 charset 은 utf-8 이 아닐 수 있다(euc-kr/cp949 한국 메일이 흔함).
+                    # 파트의 Content-Type charset 으로 디코딩하고, 없거나 알 수 없으면 utf-8.
+                    # errors="replace" 로 비정상 바이트가 전체 파싱을 죽이지 않게 한다.
+                    charset = _charset_from_headers(payload.get("headers", [])) or "utf-8"
+                    raw_bytes = _b64url_decode(data)
+                    try:
+                        decoded = raw_bytes.decode(charset, errors="replace")
+                    except LookupError:  # 알 수 없는 charset 이름
+                        decoded = raw_bytes.decode("utf-8", errors="replace")
                     if mime_type == "text/plain" or not body:
                         body = decoded
 
