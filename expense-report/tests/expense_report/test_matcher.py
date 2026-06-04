@@ -112,3 +112,31 @@ def test_parse_notion_json_handles_list_companion():
            "동반자": ["u1"]}
     out = parse_notion_json([rec], {"u1": "Alice"})
     assert out[0].companions == ["Alice"]
+
+
+# 금액 정규화 견고성 (Notion 금액이 정수/실수/문자열/쉼표/비정상)
+from expense_report.matcher import _to_amount_int
+
+
+def test_to_amount_int_variants():
+    assert _to_amount_int(27200) == 27200
+    assert _to_amount_int(27200.0) == 27200
+    assert _to_amount_int("27200") == 27200
+    assert _to_amount_int("27,200") == 27200
+    assert _to_amount_int("27,200원") == 27200
+    assert _to_amount_int("없음") is None
+    assert _to_amount_int(None) is None
+    assert _to_amount_int(True) is None  # bool 은 금액 아님
+
+
+def test_match_with_comma_string_amount():
+    txn = _make_txn("2026.03.27", 27200)
+    notion = _make_notion("2026-03-27", "27,200", ["Alice"])  # 쉼표 문자열
+    result = match_transactions([txn], [notion])
+    assert 0 in result and result[0].companions == ["Alice"]
+
+
+def test_match_skips_unparseable_amount():
+    txn = _make_txn("2026.03.27", 27200)
+    notion = _make_notion("2026-03-27", "N/A", ["Alice"])  # 파싱 불가 → 크래시 없이 미매칭
+    assert match_transactions([txn], [notion]) == {}

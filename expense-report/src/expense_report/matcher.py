@@ -15,13 +15,32 @@ def _normalize_date(date_str: str) -> str:
     return date_str.replace(".", "-")
 
 
+def _to_amount_int(value):
+    """금액을 정수로 정규화. Notion 금액이 정수/실수/쉼표포함 문자열로 올 수 있다.
+
+    파싱 불가하면 None(해당 엔트리는 매칭 키를 만들 수 없으므로 건너뜀). 과거에는 여기서
+    int("27,200")가 ValueError 로 매칭 전체를 죽였다.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        return int(float(str(value).replace(",", "").replace("원", "").strip()))
+    except (ValueError, TypeError):
+        return None
+
+
 def match_transactions(
     transactions: list[Transaction],
     notion_entries: list[NotionEntry],
 ) -> dict[int, NotionEntry]:
     notion_lookup: dict[tuple[str, int], NotionEntry] = {}
     for entry in notion_entries:
-        key = (_normalize_date(entry.date), int(entry.amount))
+        amount = _to_amount_int(entry.amount)
+        if amount is None:
+            continue  # 금액 파싱 불가 엔트리는 매칭 대상에서 제외
+        key = (_normalize_date(entry.date), amount)
         notion_lookup[key] = entry
 
     matches: dict[int, NotionEntry] = {}
