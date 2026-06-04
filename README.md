@@ -1,5 +1,7 @@
 # Claude Code Skills
 
+[![CI](https://github.com/kyunghee-yang/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/kyunghee-yang/skills/actions/workflows/ci.yml)
+
 Claude Code에서 반복 업무를 자동화하는 커스텀 스킬 모음.
 
 ## 스킬 목록
@@ -142,6 +144,19 @@ Gmail API OAuth 인증이 필요합니다. 최초 실행 시 브라우저 인증
 ```bash
 git clone git@github.com:kyunghee-yang/skills.git ~/.claude/skills
 ```
+
+## 테스트
+
+스킬별 테스트 스위트가 있으며, 통합 러너로 한 번에 실행할 수 있습니다.
+
+```bash
+./run_tests.sh          # 전체 스위트 (expense-report / task-check / autoresearch)
+./run_tests.sh -q       # pytest 옵션 전달
+```
+
+개별 스킬은 해당 디렉터리에서 `python3 -m pytest`로 실행합니다. 모든 테스트는 외부 파일 없이
+합성 픽스처로 동작하므로 신선한 클론·CI에서 그대로 통과합니다. push/PR 시 GitHub Actions가
+동일 스위트를 자동 실행합니다(`.github/workflows/ci.yml`).
 
 ## 필수 환경
 
