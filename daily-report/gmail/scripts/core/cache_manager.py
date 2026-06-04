@@ -127,8 +127,12 @@ class EmailCache:
             if self._is_fresh(data.get("cached_at"), ttl_hours):
                 return data.get("message")
 
-            # 만료된 캐시 삭제
-            cache_file.unlink(missing_ok=True)
+            # 만료 처리: metadata_only(짧은 TTL) 기준 만료여도 본문은 불변이라
+            # 본문 TTL(더 긴) 기준으로는 유효할 수 있다. 본문 TTL 기준으로도 만료된
+            # 경우에만 파일을 삭제해, 메타데이터 조회 한 번이 24h 본문 캐시를 날리는
+            # 것을 막는다.
+            if not self._is_fresh(data.get("cached_at"), self.config.message_ttl_hours):
+                cache_file.unlink(missing_ok=True)
             return None
         except (json.JSONDecodeError, KeyError):
             cache_file.unlink(missing_ok=True)
