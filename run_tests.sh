@@ -10,8 +10,15 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PYTEST_ARGS=("$@")
-declare -a SUITES=("expense-report" "task-check" "autoresearch")
+declare -a SUITES=("expense-report" "task-check" "autoresearch" "daily-report")
 failed=0
+
+# 린트(ruff)를 먼저 돌린다 — 규칙은 ruff.toml(로컬/CI 동일). 미설치 시 건너뛴다.
+if command -v ruff >/dev/null 2>&1; then
+  echo "==================== lint (ruff) ===================="
+  if ruff check .; then echo "[lint] PASS"; else echo "[lint] FAIL"; failed=1; fi
+  echo
+fi
 
 for suite in "${SUITES[@]}"; do
   echo "==================== $suite ===================="

@@ -1,0 +1,11 @@
+# 저장소 린트 규칙(로컬/CI 동일). CI(.github/workflows/ci.yml)의 lint 잡과 일치시킨다.
+#
+# 버그성 규칙만 게이트한다(스타일 현대화는 churn 이라 제외):
+#   F  = pyflakes (미사용/미정의 이름)
+#   E9 = 구문 오류
+#   B  = flake8-bugbear (가변 기본인자, 루프변수 클로저, 미사용 루프변수, assert False 등)
+[lint]
+select = ["F", "E9", "B"]
+# B905(zip strict=)는 Python 3.10+ 전용이다. expense-report 는 README 상 Python 3.9 를
+# 지원하고 CI 가 3.9 를 검증하므로 제외한다.
+ignore = ["B905"]

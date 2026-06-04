@@ -19,10 +19,9 @@ jobs:
           python-version: "3.11"
       - name: Install ruff
         run: pip install ruff
-      # F=pyflakes(미사용/미정의), E9=구문오류, B=bugbear(가변기본·클로저·미사용루프변수 등).
-      # B905(zip strict=)는 Python 3.10+ 전용이라 README의 3.9 지원을 위해 제외한다.
+      # 규칙은 루트의 ruff.toml 에 정의(로컬/CI 동일). bugs-only(F,E9,B), B905 제외(3.9 지원).
       - name: Lint (bugs only)
-        run: ruff check expense-report task-check autoresearch daily-report --select F,E9,B --ignore B905
+        run: ruff check .
 
   expense-report:
     name: expense-report tests (py${{ matrix.python }})
