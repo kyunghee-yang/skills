@@ -95,3 +95,13 @@ def test_parse_message_default_subject_when_missing():
            "payload": {"mimeType": "text/plain", "headers": [], "body": {}}}
     out = c._parse_message(msg)
     assert out["subject"] == "(제목 없음)"
+
+
+def test_snippet_is_html_unescaped():
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "headers": [],
+                       "body": {}},
+           "snippet": "Tom&#39;s &quot;report&quot; &amp; notes"}
+    out = c._parse_message(msg)
+    assert out["snippet"] == 'Tom\'s "report" & notes'

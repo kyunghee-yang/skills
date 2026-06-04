@@ -19,6 +19,7 @@ Environment Variables:
 """
 
 import base64
+import html
 import json
 import logging
 import mimetypes
@@ -369,7 +370,9 @@ class GmailClient:
             "id": msg["id"],
             "thread_id": msg["threadId"],
             "label_ids": msg.get("labelIds", []),
-            "snippet": msg.get("snippet", ""),
+            # Gmail snippet 은 HTML 이스케이프되어 오므로(&#39; &amp; 등) 언이스케이프해
+            # 리포트/요약에 사람이 읽기 좋은 텍스트로 표시한다.
+            "snippet": html.unescape(msg.get("snippet", "")),
             "from": headers.get("from", ""),
             "to": headers.get("to", ""),
             "cc": headers.get("cc", ""),
