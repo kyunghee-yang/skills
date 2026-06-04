@@ -92,3 +92,24 @@ def build_sample_xls(path: str) -> str:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     wb.save(path)
     return path
+
+
+def build_sample_receipts(folder: str, count: int = 3) -> list[str]:
+    """folder 안에 합성 영수증 이미지를 생성하고 정렬된 경로 목록을 반환한다.
+
+    이름순 정렬 검증을 위해 zero-padded 파일명을 쓰고, .jpg/.png 를 섞어
+    확장자 필터(RECEIPT_EXTENSIONS)도 함께 검증되게 한다.
+    """
+    from PIL import Image as PilImage
+
+    os.makedirs(folder, exist_ok=True)
+    paths = []
+    for i in range(count):
+        ext = ".jpg" if i % 2 == 0 else ".png"
+        name = f"receipt_{i:02d}{ext}"
+        path = os.path.join(folder, name)
+        # 가로>4.29인치(=309px) 인 이미지를 만들어 attach_receipts 리사이즈 경로도 탄다.
+        img = PilImage.new("RGB", (400, 600), (240, 240, 240))
+        img.save(path, "JPEG" if ext == ".jpg" else "PNG")
+        paths.append(path)
+    return sorted(paths)

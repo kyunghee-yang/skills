@@ -6,7 +6,7 @@ sys.path.insert(0, src_path)
 
 import pytest
 
-from fixtures import build_sample_xls
+from fixtures import build_sample_receipts, build_sample_xls
 
 
 @pytest.fixture(scope="session")
@@ -17,3 +17,11 @@ def sample_xls(tmp_path_factory):
     """
     path = tmp_path_factory.mktemp("xls") / "간편서비스_승인내역.xls"
     return build_sample_xls(str(path))
+
+
+@pytest.fixture(scope="session")
+def sample_receipts_dir(tmp_path_factory):
+    """합성 영수증 이미지 3장이 든 폴더 경로. 이름순 정렬·확장자 필터 검증용."""
+    folder = tmp_path_factory.mktemp("receipts")
+    build_sample_receipts(str(folder), count=3)
+    return str(folder)

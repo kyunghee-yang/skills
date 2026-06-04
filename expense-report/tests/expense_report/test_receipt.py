@@ -1,23 +1,21 @@
 from expense_report.receipt import attach_receipts, collect_receipt_files, validate_taxi_receipts
 import openpyxl, os, tempfile
 
-TEST_FOLDER = "/Users/ykh/Documents/drive/개인경비 지출결의서/2026/202603"
 
-
-def test_collect_receipt_files():
-    files = collect_receipt_files(TEST_FOLDER)
+def test_collect_receipt_files(sample_receipts_dir):
+    files = collect_receipt_files(sample_receipts_dir)
     assert len(files) >= 3
     assert all(os.path.splitext(f)[1].lower() in {".jpg", ".jpeg", ".png"} for f in files)
 
 
-def test_collect_sorted_by_name():
-    files = collect_receipt_files(TEST_FOLDER)
+def test_collect_sorted_by_name(sample_receipts_dir):
+    files = collect_receipt_files(sample_receipts_dir)
     names = [os.path.basename(f) for f in files]
     assert names == sorted(names)
 
 
-def test_attach_receipts_adds_images():
-    files = collect_receipt_files(TEST_FOLDER)
+def test_attach_receipts_adds_images(sample_receipts_dir):
+    files = collect_receipt_files(sample_receipts_dir)
     with tempfile.TemporaryDirectory() as tmpdir:
         wb = openpyxl.Workbook()
         ws = wb.active
