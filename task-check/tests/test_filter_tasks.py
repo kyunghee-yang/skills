@@ -152,3 +152,25 @@ def test_schedule_datetime_range_matches():
 def test_schedule_datetime_start_other_day():
     assert schedule_includes_today(
         {"date:일정:start": "2026-06-05T09:00:00+09:00"}, "2026-06-04") is False
+
+
+# page_id 추출 견고성 (상태변경 타겟 정확성)
+from filter_tasks import _page_id_from_url
+
+
+def test_page_id_basic():
+    assert _page_id_from_url("https://www.notion.so/제목-abc123") == "제목-abc123"
+
+
+def test_page_id_strips_query_and_fragment():
+    assert _page_id_from_url("https://www.notion.so/제목-abc123?v=xyz") == "제목-abc123"
+    assert _page_id_from_url("https://www.notion.so/제목-abc123#sec") == "제목-abc123"
+
+
+def test_page_id_strips_trailing_slash():
+    assert _page_id_from_url("https://www.notion.so/제목-abc123/") == "제목-abc123"
+
+
+def test_page_id_empty_url():
+    assert _page_id_from_url("") == ""
+    assert _page_id_from_url(None) == ""

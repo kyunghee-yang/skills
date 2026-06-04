@@ -29,6 +29,18 @@ def parse_tags(raw):
         return []
 
 
+def _page_id_from_url(url):
+    """Notion 페이지 URL에서 page_id(마지막 경로 세그먼트)를 견고하게 추출한다.
+
+    이 값은 상태 변경(notion-update-page)의 타겟이므로 ?query·#fragment·trailing slash를
+    먼저 제거해 엉뚱한 페이지를 가리키지 않게 한다.
+    """
+    if not url:
+        return ""
+    cleaned = str(url).split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    return cleaned.split("/")[-1] if cleaned else ""
+
+
 def _date_part(value):
     """Notion 날짜에서 날짜(YYYY-MM-DD) 부분만 취한다. 일시('..T09:00..')면 시간 제거."""
     if not value or value == "None":
@@ -156,8 +168,7 @@ def main():
         priority = task.get("우선 순위") or "-"
         tags = ", ".join(parse_tags(task.get("태그")))
 
-        url = task.get("url", "")
-        page_id = url.split("/")[-1] if url else ""
+        page_id = _page_id_from_url(task.get("url", ""))
         notion_link = f"https://www.notion.so/{page_id}" if page_id else ""
 
         line = f"  {num}. [{task_id}]({notion_link}) | {name} | {priority}"
