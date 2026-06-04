@@ -26,8 +26,7 @@ def attach_receipts(ws, file_paths: list[str]) -> None:
     """영수증 이미지를 가로로 나란히 배치. 최대 너비 4.29인치/장."""
     max_width_px = int(RECEIPT_MAX_WIDTH_INCHES * 72)
     col_width_px = max_width_px + 10  # 이미지 간 약간의 간격
-    default_col_char_width = 8.43     # Excel 기본 열 너비 (문자 수)
-    px_per_char = 7                   # 대략적 변환
+    px_per_char = 7                   # 픽셀→열너비(문자 수) 대략 변환
 
     for i, fpath in enumerate(file_paths):
         pil_img = PilImage.open(fpath)
