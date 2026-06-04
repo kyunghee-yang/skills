@@ -77,6 +77,30 @@ def calculate_delay(
     return min(delay, max_delay)
 
 
+def retry_after_seconds(error: Exception) -> Optional[float]:
+    """오류 응답의 Retry-After 헤더(초)를 반환한다. 없거나 파싱 불가면 None.
+
+    Google API 는 429/503 에서 Retry-After 를 줄 수 있고, 모범사례는 지수 백오프보다 이
+    값을 우선 존중하는 것이다(서버가 알려준 회복 시점). 정수 초만 해석하고, HTTP-date 형식이나
+    음수/비정상은 무시한다.
+    """
+    resp = getattr(error, "resp", None)
+    if resp is None:
+        return None
+    # httplib2 Response 는 헤더 키가 소문자인 dict 류
+    try:
+        value = resp.get("retry-after")
+    except AttributeError:
+        value = None
+    if value is None:
+        return None
+    try:
+        secs = float(value)
+    except (ValueError, TypeError):
+        return None
+    return secs if secs >= 0 else None
+
+
 def is_retryable_error(error: Exception) -> bool:
     """재시도 가능한 오류인지 확인.
 
@@ -154,13 +178,18 @@ def exponential_backoff(
                         )
                         raise
 
-                    delay = calculate_delay(
-                        attempt,
-                        base_delay,
-                        max_delay,
-                        exponential_base,
-                        jitter,
-                    )
+                    # 서버가 Retry-After 를 줬으면 그 값을 우선 존중(상한 적용)한다.
+                    ra = retry_after_seconds(e)
+                    if ra is not None:
+                        delay = min(ra, max_delay)
+                    else:
+                        delay = calculate_delay(
+                            attempt,
+                            base_delay,
+                            max_delay,
+                            exponential_base,
+                            jitter,
+                        )
 
                     if on_retry:
                         on_retry(attempt, e, delay)
@@ -261,13 +290,17 @@ class RetryableOperation:
         if self.attempt >= self.config.max_retries:
             raise error
 
-        delay = calculate_delay(
-            self.attempt,
-            self.config.base_delay,
-            self.config.max_delay,
-            self.config.exponential_base,
-            self.config.jitter,
-        )
+        ra = retry_after_seconds(error)
+        if ra is not None:
+            delay = min(ra, self.config.max_delay)
+        else:
+            delay = calculate_delay(
+                self.attempt,
+                self.config.base_delay,
+                self.config.max_delay,
+                self.config.exponential_base,
+                self.config.jitter,
+            )
 
         logger.warning(
             f"재시도 {self.attempt + 1}/{self.config.max_retries}: "

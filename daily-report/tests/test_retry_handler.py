@@ -50,3 +50,23 @@ def test_delay_increases_with_attempt_no_jitter():
     d1 = rh.calculate_delay(1, jitter=False)
     d2 = rh.calculate_delay(2, jitter=False)
     assert d0 < d1 < d2
+
+
+# Retry-After 헤더 존중 (외부 모범사례 반영)
+class _FakeErr(Exception):
+    def __init__(self, resp):
+        self.resp = resp
+
+
+def test_retry_after_parses_integer_seconds():
+    assert rh.retry_after_seconds(_FakeErr({"retry-after": "5"})) == 5.0
+
+
+def test_retry_after_none_when_absent():
+    assert rh.retry_after_seconds(_FakeErr({})) is None
+    assert rh.retry_after_seconds(Exception("no resp")) is None
+
+
+def test_retry_after_ignores_http_date_and_negative():
+    assert rh.retry_after_seconds(_FakeErr({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})) is None
+    assert rh.retry_after_seconds(_FakeErr({"retry-after": "-3"})) is None
