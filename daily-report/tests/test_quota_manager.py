@@ -87,3 +87,17 @@ def test_daily_limit_resets_after_midnight():
     m.record_usage(USER, 10)
     m._usage[USER].daily_reset = datetime.now() - timedelta(days=1)
     assert m.is_daily_limit_reached(USER) is False
+
+
+def test_wait_for_quota_returns_immediately_when_available():
+    m = _mgr(rate_limit=250)
+    assert m.wait_for_quota(USER, 100, timeout=1.0) is True
+
+
+def test_wait_for_quota_times_out_when_saturated():
+    import pytest
+    m = _mgr(rate_limit=10)
+    m.record_usage(USER, 10)  # 포화
+    # 단일 요청이 한도를 넘어 절대 확보 불가 → 짧은 타임아웃에 TimeoutError
+    with pytest.raises(TimeoutError):
+        m.wait_for_quota(USER, 10, timeout=0.05)
