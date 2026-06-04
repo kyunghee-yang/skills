@@ -317,8 +317,11 @@ class GmailClient:
 
         parsed = self._parse_message(result)
 
-        # Cache the result
-        if use_cache and self._cache and format in ("full", "metadata"):
+        # full 만 캐시한다. metadata 응답은 본문 data 가 없어 parsed["body"]가 비는데,
+        # metadata/full 이 같은 캐시 파일을 공유하므로 metadata 를 저장하면 이후 full 조회가
+        # 빈 본문을 돌려받는 오염이 생긴다. full 은 metadata 의 상위집합이라 metadata 조회도
+        # full 캐시로 안전하게 충족된다.
+        if use_cache and self._cache and format == "full":
             self._cache.set_message(self.account_name, message_id, parsed)
 
         return parsed
