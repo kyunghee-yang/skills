@@ -1,3 +1,5 @@
+import pytest
+
 import ab_score
 
 
@@ -62,11 +64,8 @@ def test_decide_tie_when_diff_within_noise():
 def test_score_requires_common_metric():
     a = _cand("A", x=(1, 1.0, True))
     b = _cand("B", y=(1, 1.0, True))
-    try:
+    with pytest.raises(SystemExit):  # 공통 지표 없으면 SystemExit
         ab_score.score(a, b)
-        assert False, "공통 지표 없으면 SystemExit 여야 함"
-    except SystemExit:
-        pass
 
 
 def test_all_zero_weights_is_tie_not_crash():

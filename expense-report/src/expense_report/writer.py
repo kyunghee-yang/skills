@@ -146,7 +146,7 @@ def _write_sheet1(ws, all_transactions: list[Transaction]) -> None:
 
 def _write_sheet2(ws, transactions: list[Transaction], classifications: list[Classification]) -> None:
     row = SHEET2_DATA_START_ROW
-    for txn, cls in zip(transactions, classifications):
+    for _txn, cls in zip(transactions, classifications):  # txn 은 sheet2 에 쓰지 않음
         ws.cell(row, SHEET2_COL_DRAFTER).value = DRAFTER_NAME
         ws.cell(row, SHEET2_COL_DEPT).value = DEPARTMENT
         if not cls.is_manual or "expense_amount" not in cls.manual_fields:
