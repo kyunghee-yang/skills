@@ -46,36 +46,32 @@ def schedule_includes_today(task, today_str):
     return start == today_str
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Filter active tasks from Notion Board view query results.")
-    parser.add_argument("file_path", help="Path to the Notion query result JSON file")
-    parser.add_argument("--all-dates", action="store_true", help="Disable date filter (show all active tasks)")
-    parser.add_argument("--include-backlog", action="store_true", help="Include backlog tasks")
-    parser.add_argument("--include-done", action="store_true", help="Include completed/closed tasks")
-    args = parser.parse_args()
-
-    file_path = args.file_path
-    include_backlog = args.include_backlog
-    include_done = args.include_done
-    all_dates = args.all_dates
-    today_str = date.today().isoformat()
-
-    with open(file_path) as f:
-        data = json.load(f)
-
-    if isinstance(data, list) and data and "text" in data[0]:
-        inner = json.loads(data[0]["text"])
-    else:
-        inner = data
-
-    results = inner.get("results", [])
-
+def resolve_statuses(include_backlog=False, include_done=False):
+    """활성 상태 목록을 옵션에 따라 구성한다. 정렬 우선순위(인덱스) 기준이 된다."""
     statuses = ACTIVE_STATUSES[:]
     if include_backlog:
         statuses.append("백로그")
     if include_done:
         statuses.extend(["완료", "닫힘"])
+    return statuses
 
+
+def extract_results(data):
+    """MCP 응답(리스트+text 래핑) 또는 평문 dict 모두에서 results 배열을 꺼낸다."""
+    if isinstance(data, list) and data and "text" in data[0]:
+        inner = json.loads(data[0]["text"])
+    else:
+        inner = data
+    return inner.get("results", [])
+
+
+def filter_active_tasks(results, today_str, include_backlog=False,
+                        include_done=False, all_dates=False):
+    """내 활성 일감만 추려 상태→우선순위 순으로 정렬해 반환한다.
+
+    순수 함수로 분리하여 단위 테스트가 가능하게 한다. main()의 출력 동작은 불변.
+    """
+    statuses = resolve_statuses(include_backlog, include_done)
     active = []
     for r in results:
         if r.get("상태") not in statuses:
@@ -97,8 +93,31 @@ def main():
         statuses.index(r.get("상태", "")),
         PRIORITY_ORDER.get(r.get("우선 순위"), 99),
     ))
+    return active
 
-    today = date.today().isoformat()
+
+def main():
+    parser = argparse.ArgumentParser(description="Filter active tasks from Notion Board view query results.")
+    parser.add_argument("file_path", help="Path to the Notion query result JSON file")
+    parser.add_argument("--all-dates", action="store_true", help="Disable date filter (show all active tasks)")
+    parser.add_argument("--include-backlog", action="store_true", help="Include backlog tasks")
+    parser.add_argument("--include-done", action="store_true", help="Include completed/closed tasks")
+    args = parser.parse_args()
+
+    today_str = date.today().isoformat()
+
+    with open(args.file_path) as f:
+        data = json.load(f)
+
+    results = extract_results(data)
+    active = filter_active_tasks(
+        results, today_str,
+        include_backlog=args.include_backlog,
+        include_done=args.include_done,
+        all_dates=args.all_dates,
+    )
+
+    today = today_str
     print(f"📋 일감 현황 ({today})")
     print("━" * 40)
 

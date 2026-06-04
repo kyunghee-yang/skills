@@ -31,6 +31,20 @@ jobs:
         working-directory: expense-report
         run: python -m pytest -q
 
+  task-check:
+    name: task-check tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run tests
+        working-directory: task-check
+        run: python -m pytest -q
+
   autoresearch-smoke:
     name: autoresearch scripts smoke
     runs-on: ubuntu-latest
