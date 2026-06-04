@@ -134,3 +134,21 @@ def test_archive_all_empty_returns_empty():
     svc = _FakeService(list_pages=[{"messages": []}])
     res = _proc(svc).archive_all()
     assert res.total == 0
+
+
+def test_batch_modify_uses_single_call_for_under_1000():
+    # 효율: 60개(>batch_size 50)라도 batchModify는 1회 호출(≤1000)이어야 한다
+    svc = _FakeService()
+    ids = [str(i) for i in range(60)]
+    res = _proc(svc, batch_size=50).batch_modify_labels(ids, add_labels=["X"])
+    assert res.succeeded == 60
+    assert len(svc.batch_modify_calls) == 1  # 50으로 안 쪼갬
+    assert len(svc.batch_modify_calls[0]["ids"]) == 60
+
+
+def test_batch_modify_splits_over_1000():
+    svc = _FakeService()
+    ids = [str(i) for i in range(2500)]
+    res = _proc(svc).batch_modify_labels(ids, add_labels=["X"])
+    assert res.succeeded == 2500
+    assert len(svc.batch_modify_calls) == 3  # 1000,1000,500

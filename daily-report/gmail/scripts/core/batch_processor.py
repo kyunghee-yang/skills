@@ -54,7 +54,10 @@ class BatchProcessor:
         )
     """
 
-    MAX_BATCH_SIZE = 50  # Gmail API 최대 배치 크기
+    MAX_BATCH_SIZE = 50  # batch HTTP 요청(개별 get/trash/delete)의 최대 묶음 크기
+    # batchModify 는 batch HTTP 가 아니라 ids 배열을 받는 단일 호출이며 1회 1000개까지
+    # 허용된다. 50으로 쪼개면 호출·쿼터(호출당 50단위)를 ~20배 낭비하므로 별도 상한을 둔다.
+    MODIFY_BATCH_SIZE = 1000
     DEFAULT_DELAY = 0.5  # 배치 간 기본 지연 (초)
 
     def __init__(
@@ -175,8 +178,10 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(message_ids))
 
-        for i in range(0, len(message_ids), self.batch_size):
-            batch_ids = message_ids[i : i + self.batch_size]
+        # batchModify 는 1회 1000 ids 까지 허용 → 큰 청크로 호출·쿼터를 아낀다(batch_size 50 아님).
+        chunk = self.MODIFY_BATCH_SIZE
+        for i in range(0, len(message_ids), chunk):
+            batch_ids = message_ids[i : i + chunk]
 
             # 할당량 확인 및 대기
             units = QuotaUnit.MESSAGES_BATCH_MODIFY
