@@ -124,8 +124,13 @@ A안(현재 상태)은 절대 건드리지 않고 보존한다. B안은 격리�
 
 - 코드: 테스트 스위트 실행. 테스트가 없으면 핵심 경로를 직접 실행.
 - 앱/UI: **브라우저로 직접 클릭하며 검증**한다. cmux 환경이면 cmux 내장 브라우저와 codex
-  computer-use를, 아니면 Playwright(설치돼 있음)를 쓴다. 절차는 `references/browser-verification.md`.
+  computer-use를, 아니면 `scripts/verify_app.py`(Playwright)를 쓴다. 절차는 `references/browser-verification.md`.
 - 스킬: `verify`/`run` 스킬을 활용하거나 서브에이전트로 실제 호출.
+- **독립 리뷰(고수율)**: 누적 변경에 주기적으로 `security-review`·`code-review` 스킬을 돌린다.
+  이들은 **유닛 테스트가 놓치는 버그**(None/포맷 엣지, 인젝션 싱크, 클로저 late-binding,
+  종료코드 의미 등)를 잡는 독립 시점이다 — 실제로 이 저장소 자가개선 중 다수 실버그를
+  이 두 리뷰가 발견했다. 발견 항목은 직접 재현·검증 후에만 채택한다(리뷰도 오탐이 있다).
+- 정적 분석: `ruff check .`(루트 ruff.toml)로 버그성 규칙(F/E9/B)을 게이트한다.
 
 ### 7. SHIP — 커밋 & 푸시
 
