@@ -80,8 +80,13 @@ def score(a: dict, b: dict) -> dict:
             "within_noise": within_noise,
         })
 
-    sa /= total_w
-    sb /= total_w
+    if total_w == 0:
+        # 모든 가중치가 0이면 비교 불가 → 동률(0.5/0.5)로 처리(0 나눗셈 방지).
+        sa = sb = 0.5
+        any_real_edge = False
+    else:
+        sa /= total_w
+        sb /= total_w
     return {"score_a": round(sa, 4), "score_b": round(sb, 4),
             "rows": rows, "any_real_edge": any_real_edge}
 

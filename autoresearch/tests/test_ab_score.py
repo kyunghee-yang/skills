@@ -67,3 +67,11 @@ def test_score_requires_common_metric():
         assert False, "공통 지표 없으면 SystemExit 여야 함"
     except SystemExit:
         pass
+
+
+def test_all_zero_weights_is_tie_not_crash():
+    a = _cand("A", m=(1, 0.0, True))
+    b = _cand("B", m=(2, 0.0, True))
+    res = ab_score.score(a, b)  # 과거: ZeroDivisionError
+    assert res["score_a"] == 0.5 and res["score_b"] == 0.5
+    assert ab_score.decide(res, margin=0.03) == "TIE"
