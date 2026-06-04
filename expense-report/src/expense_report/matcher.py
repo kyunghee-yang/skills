@@ -12,7 +12,10 @@ class NotionEntry:
 
 
 def _normalize_date(date_str: str) -> str:
-    return date_str.replace(".", "-")
+    # Notion 날짜 속성은 날짜('2026-03-27') 또는 일시('2026-03-27T02:12:33.231Z')로 올 수 있다.
+    # 일시면 T 앞 날짜 부분만 취해, 카드 거래일(YYYY.MM.DD)과 일자 단위로 매칭한다.
+    date_part = str(date_str).split("T", 1)[0]
+    return date_part.replace(".", "-")
 
 
 def _to_amount_int(value):

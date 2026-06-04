@@ -140,3 +140,18 @@ def test_match_skips_unparseable_amount():
     txn = _make_txn("2026.03.27", 27200)
     notion = _make_notion("2026-03-27", "N/A", ["Alice"])  # 파싱 불가 → 크래시 없이 미매칭
     assert match_transactions([txn], [notion]) == {}
+
+
+# Notion 날짜가 datetime 형식일 때도 일자 단위로 매칭 (조사 확인 버그)
+def test_match_with_datetime_notion_date():
+    txn = _make_txn("2026.03.27", 27200)
+    for d in ["2026-03-27", "2026-03-27T02:12:33.231Z", "2026-03-27T00:00:00+09:00"]:
+        result = match_transactions([txn], [_make_notion(d, 27200, ["A"])])
+        assert 0 in result, f"{d} 매칭 실패"
+
+
+def test_normalize_date_strips_time():
+    from expense_report.matcher import _normalize_date
+    assert _normalize_date("2026.03.27") == "2026-03-27"
+    assert _normalize_date("2026-03-27") == "2026-03-27"
+    assert _normalize_date("2026-03-27T02:12:33.231Z") == "2026-03-27"
