@@ -119,3 +119,18 @@ def test_mark_all_as_read_empty_returns_empty():
     svc = _FakeService(list_pages=[{"messages": []}])
     res = _proc(svc).mark_all_as_read()
     assert res.total == 0 and res.succeeded == 0
+
+
+def test_archive_all_uses_inbox_query_and_removes_inbox():
+    # 고유 로직: removeLabelIds=[INBOX] (mark_all_as_read 의 UNREAD 와 구분)
+    svc = _FakeService(list_pages=[{"messages": [{"id": "1"}, {"id": "2"}]}])
+    res = _proc(svc).archive_all(query="from:boss", max_messages=500)
+    assert res.succeeded == 2
+    assert svc.batch_modify_calls[0]["removeLabelIds"] == ["INBOX"]
+    assert svc.batch_modify_calls[0]["ids"] == ["1", "2"]
+
+
+def test_archive_all_empty_returns_empty():
+    svc = _FakeService(list_pages=[{"messages": []}])
+    res = _proc(svc).archive_all()
+    assert res.total == 0
