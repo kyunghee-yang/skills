@@ -24,6 +24,23 @@ from expense_report.parser import Transaction, XlsMeta
 # 템플릿 기본 14쌍 (row 10~37)
 _TEMPLATE_PAIR_COUNT = 14
 
+# 수식 인젝션을 유발하는 선두 문자. openpyxl 은 "="로 시작하는 문자열을 수식으로 저장하고,
+# Excel/Calc 은 +,-,@ 로 시작하는 값도 수식으로 해석할 수 있다.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@")
+
+
+def _safe_cell(value):
+    """가맹점명 등 외부 유래 텍스트가 수식으로 해석되지 않도록 살균한다.
+
+    카드사 가맹점명은 통제 불가한 외부 입력이라 "=HYPERLINK(...)" 같은 값이 섞이면
+    openpyxl 이 이를 수식으로 저장해 결의서를 열 때 실행될 수 있다(스프레드시트 수식 인젝션).
+    위험 선두 문자로 시작하는 문자열은 작은따옴표를 붙여 텍스트로 강제한다(OWASP 권고).
+    숫자 등 비문자열은 그대로 둔다.
+    """
+    if isinstance(value, str) and value[:1] in _FORMULA_TRIGGERS:
+        return "'" + value
+    return value
+
 # 각 2행 쌍의 병합 패턴 (col_start, col_end, row_span)
 # row_span: 2 = 두 행 모두 병합, 1 = 첫 행만 (S열의 부가세/상태)
 _MERGE_PATTERN = [
@@ -43,13 +60,14 @@ _MERGE_PATTERN = [
 
 
 def _write_sheet1_meta(ws, meta: XlsMeta) -> None:
-    ws.cell(3, 5).value = meta.period
-    ws.cell(4, 6).value = meta.domestic_count
-    ws.cell(4, 14).value = meta.domestic_total
-    ws.cell(5, 6).value = meta.overseas_count
-    ws.cell(5, 14).value = meta.overseas_total
-    ws.cell(6, 6).value = meta.cancel_count
-    ws.cell(6, 14).value = meta.reject_count
+    # meta 값도 card .xls 에서 온 외부 데이터이므로 수식 인젝션 살균 대상이다.
+    ws.cell(3, 5).value = _safe_cell(meta.period)
+    ws.cell(4, 6).value = _safe_cell(meta.domestic_count)
+    ws.cell(4, 14).value = _safe_cell(meta.domestic_total)
+    ws.cell(5, 6).value = _safe_cell(meta.overseas_count)
+    ws.cell(5, 14).value = _safe_cell(meta.overseas_total)
+    ws.cell(6, 6).value = _safe_cell(meta.cancel_count)
+    ws.cell(6, 14).value = _safe_cell(meta.reject_count)
 
 
 def _copy_cell_style(src_cell, dst_cell) -> None:
@@ -110,37 +128,37 @@ def _write_sheet1(ws, all_transactions: list[Transaction]) -> None:
 
     row = SHEET1_DATA_START_ROW
     for txn in all_transactions:
-        ws.cell(row, SHEET1_COL_DATE).value = txn.date
-        ws.cell(row, SHEET1_COL_TIME).value = txn.time
-        ws.cell(row, SHEET1_COL_MERCHANT).value = txn.merchant
-        ws.cell(row, SHEET1_COL_CARD).value = txn.card_number
-        ws.cell(row, SHEET1_COL_TYPE).value = txn.usage_type
+        ws.cell(row, SHEET1_COL_DATE).value = _safe_cell(txn.date)
+        ws.cell(row, SHEET1_COL_TIME).value = _safe_cell(txn.time)
+        ws.cell(row, SHEET1_COL_MERCHANT).value = _safe_cell(txn.merchant)
+        ws.cell(row, SHEET1_COL_CARD).value = _safe_cell(txn.card_number)
+        ws.cell(row, SHEET1_COL_TYPE).value = _safe_cell(txn.usage_type)
         ws.cell(row, SHEET1_COL_AMOUNT).value = txn.amount
-        ws.cell(row, SHEET1_COL_TXN_TYPE).value = txn.transaction_type
-        ws.cell(row, SHEET1_COL_APPROVAL).value = txn.approval_number
-        ws.cell(row, SHEET1_COL_PURCHASE).value = txn.purchase_status
-        ws.cell(row, SHEET1_COL_PURCHASE_DATE).value = txn.purchase_date
-        ws.cell(row, SHEET1_COL_INSTALLMENT).value = txn.installment
-        ws.cell(row, SHEET1_COL_VAT).value = txn.vat
-        ws.cell(row + 1, SHEET1_COL_VAT).value = txn.status
+        ws.cell(row, SHEET1_COL_TXN_TYPE).value = _safe_cell(txn.transaction_type)
+        ws.cell(row, SHEET1_COL_APPROVAL).value = _safe_cell(txn.approval_number)
+        ws.cell(row, SHEET1_COL_PURCHASE).value = _safe_cell(txn.purchase_status)
+        ws.cell(row, SHEET1_COL_PURCHASE_DATE).value = _safe_cell(txn.purchase_date)
+        ws.cell(row, SHEET1_COL_INSTALLMENT).value = _safe_cell(txn.installment)
+        ws.cell(row, SHEET1_COL_VAT).value = _safe_cell(txn.vat)
+        ws.cell(row + 1, SHEET1_COL_VAT).value = _safe_cell(txn.status)
         row += 2
 
 
 def _write_sheet2(ws, transactions: list[Transaction], classifications: list[Classification]) -> None:
     row = SHEET2_DATA_START_ROW
-    for txn, cls in zip(transactions, classifications):
+    for _txn, cls in zip(transactions, classifications):  # txn 은 sheet2 에 쓰지 않음
         ws.cell(row, SHEET2_COL_DRAFTER).value = DRAFTER_NAME
         ws.cell(row, SHEET2_COL_DEPT).value = DEPARTMENT
         if not cls.is_manual or "expense_amount" not in cls.manual_fields:
             ws.cell(row, SHEET2_COL_EXPENSE).value = cls.expense_amount
         if cls.usage:
-            ws.cell(row, SHEET2_COL_USAGE).value = cls.usage
+            ws.cell(row, SHEET2_COL_USAGE).value = _safe_cell(cls.usage)
         if cls.companion:
-            ws.cell(row, SHEET2_COL_COMPANION).value = cls.companion
+            ws.cell(row, SHEET2_COL_COMPANION).value = _safe_cell(cls.companion)
         if cls.route:
-            ws.cell(row, SHEET2_COL_ROUTE).value = cls.route
+            ws.cell(row, SHEET2_COL_ROUTE).value = _safe_cell(cls.route)
         if cls.account:
-            ws.cell(row, SHEET2_COL_ACCOUNT).value = cls.account
+            ws.cell(row, SHEET2_COL_ACCOUNT).value = _safe_cell(cls.account)
         row += 1
 
 
@@ -150,9 +168,11 @@ def write_expense_report(
     output_path: str,
     all_transactions: Optional[list[Transaction]] = None,
     meta: Optional[XlsMeta] = None,
+    template_path: Optional[str] = None,
 ) -> None:
     warnings.filterwarnings("ignore", category=UserWarning)
-    wb = openpyxl.load_workbook(TEMPLATE_PATH)
+    # template_path 미지정 시 config 기본값(사용자 config로 오버라이드 가능)을 쓴다.
+    wb = openpyxl.load_workbook(template_path or TEMPLATE_PATH)
     sheet1 = wb["1.매출내역(원본)"]
     if meta:
         _write_sheet1_meta(sheet1, meta)

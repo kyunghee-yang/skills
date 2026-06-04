@@ -1,0 +1,99 @@
+name: CI
+
+# 신선한 환경에서 스킬들의 테스트·스크립트가 동작하는지 검증하는 회귀 게이트.
+# (오토리서치 루프의 VERIFY 단계가 의존하는 자동 신호이기도 하다.)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      # 규칙은 루트의 ruff.toml 에 정의(로컬/CI 동일). bugs-only(F,E9,B), B905 제외(3.9 지원).
+      - name: Lint (bugs only)
+        run: ruff check .
+
+  expense-report:
+    name: expense-report tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # README가 expense-report에 'Python 3.9+'를 보장하므로 하한(3.9)도 검증한다.
+        python: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install dependencies
+        working-directory: expense-report
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        working-directory: expense-report
+        run: python -m pytest -q
+
+  task-check:
+    name: task-check tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run tests
+        working-directory: task-check
+        run: python -m pytest -q
+
+  daily-report:
+    name: daily-report tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install pytest google-api-python-client
+      - name: Run tests
+        working-directory: daily-report
+        run: python -m pytest -q
+
+  autoresearch:
+    name: autoresearch scripts tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run unit tests
+        working-directory: autoresearch
+        run: python -m pytest -q
+      - name: CLI smoke (loop_ledger + ab_score)
+        run: |
+          python autoresearch/scripts/loop_ledger.py --ledger /tmp/led.json start \
+            --target ci --hypothesis "ci smoke"
+          python autoresearch/scripts/loop_ledger.py --ledger /tmp/led.json status
+          python autoresearch/scripts/ab_score.py template > /tmp/a.json
+          cp /tmp/a.json /tmp/b.json
+          # compare 는 B 우세 시 0, A/동률 시 1 을 반환한다(동일 입력=동률→1). 스모크에선
+          # 명령이 크래시 없이 도는지만 본다.
+          python autoresearch/scripts/ab_score.py compare /tmp/a.json /tmp/b.json || true

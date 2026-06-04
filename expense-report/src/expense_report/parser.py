@@ -35,7 +35,12 @@ def _parse_amount(raw: str) -> int:
     cleaned = str(raw).replace(",", "").replace("원", "").strip()
     if not cleaned:
         return 0
-    return int(float(cleaned))
+    try:
+        return int(float(cleaned))
+    except ValueError:
+        # 비숫자 금액('-', 'N/A' 등)이 섞여도 한 행이 전체 파싱을 죽이지 않도록 0으로
+        # 격하한다. 0 은 결의서에 그대로 드러나므로 사용자가 해당 행을 쉽게 발견·교정할 수 있다.
+        return 0
 
 
 def _cell_str(sheet, row: int, col: int) -> str:

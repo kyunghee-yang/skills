@@ -1,7 +1,6 @@
 from __future__ import annotations
 import json
 import os
-import sys
 import warnings
 from collections import Counter
 from typing import Optional
@@ -16,7 +15,7 @@ from expense_report.config import (
     SHEET2_COL_USAGE, SHEET2_DATA_START_ROW,
 )
 from expense_report.matcher import NotionEntry, match_transactions
-from expense_report.parser import parse_xls, parse_xls_all, parse_xls_meta
+from expense_report.parser import parse_xls_all, parse_xls_meta
 from expense_report.receipt import attach_receipts, collect_receipt_files, validate_taxi_receipts
 from expense_report.writer import write_expense_report
 
@@ -63,7 +62,11 @@ def _read_existing_overrides(output_path: str) -> dict[int, dict]:
     return overrides
 
 
-def run_pipeline(folder_path: str, notion_data: Optional[dict] = None) -> dict:
+def run_pipeline(
+    folder_path: str,
+    notion_data: Optional[dict] = None,
+    template_path: Optional[str] = None,
+) -> dict:
     yy, mm = _extract_year_month(folder_path)
     xls_path = _find_xls(folder_path)
     all_transactions = parse_xls_all(xls_path)
@@ -127,6 +130,7 @@ def run_pipeline(folder_path: str, notion_data: Optional[dict] = None) -> dict:
     write_expense_report(
         all_transactions, classifications, output_path,
         all_transactions=all_transactions, meta=meta,
+        template_path=template_path,
     )
 
     # Attach receipts

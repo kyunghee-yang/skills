@@ -19,11 +19,11 @@ Environment Variables:
 """
 
 import base64
+import html
 import json
 import logging
 import mimetypes
 import os
-from datetime import datetime
 from email import encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -44,7 +44,6 @@ try:
         QuotaManager,
         QuotaUnit,
         exponential_backoff,
-        RetryConfig,
         EmailCache,
         BatchProcessor,
     )
@@ -54,7 +53,6 @@ except ImportError:
         QuotaManager,
         QuotaUnit,
         exponential_backoff,
-        RetryConfig,
         EmailCache,
         BatchProcessor,
     )
@@ -64,6 +62,57 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = int(os.environ.get("GMAIL_TIMEOUT", "30"))
 ENABLE_CACHE = os.environ.get("GMAIL_ENABLE_CACHE", "true").lower() == "true"
 ENABLE_QUOTA = os.environ.get("GMAIL_ENABLE_QUOTA", "true").lower() == "true"
+
+
+def _sanitize_header(value: str) -> str:
+    """이메일 헤더 값에서 CR/LF 를 제거한다(헤더 인젝션 방어 + 직렬화 크래시 방지).
+
+    to/subject/cc 등에 개행이 섞이면 (1) 공격자가 추가 헤더(Bcc 등)를 주입하려는 시도이거나
+    (2) 실수로 들어간 개행이며, 어느 쪽이든 email 직렬화가 HeaderParseError 로 발송을
+    중단시킨다. 개행을 공백으로 접어 안전하게 만든다.
+    """
+    if value is None:
+        return value
+    return str(value).replace("\r", " ").replace("\n", " ")
+
+
+def _decode_mime_header(value: str) -> str:
+    """RFC2047 인코딩된 헤더(=?UTF-8?B?..?=)를 사람이 읽는 텍스트로 디코딩한다.
+
+    Gmail API 는 헤더 값을 원본(인코딩) 그대로 주므로, 한글 등 비ASCII 제목/발신자가
+    그대로 노출되면 깨져 보인다. 디코딩 실패 시 원본을 반환한다.
+    """
+    if not value:
+        return value
+    try:
+        from email.header import decode_header, make_header
+
+        return str(make_header(decode_header(value)))
+    except Exception:
+        return value
+
+
+def _charset_from_headers(headers: list) -> str | None:
+    """파트 headers 의 Content-Type 에서 charset 을 추출한다(예: 'euc-kr'). 없으면 None."""
+    for h in headers or []:
+        if h.get("name", "").lower() == "content-type":
+            value = h.get("value", "")
+            for part in value.split(";"):
+                part = part.strip()
+                if part.lower().startswith("charset="):
+                    return part.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
+
+def _b64url_decode(data: str) -> bytes:
+    """base64url 디코딩 시 누락된 패딩을 보정한다.
+
+    Gmail API 는 메시지 본문/첨부 data 를 패딩 없는 base64url 로 줄 때가 있어,
+    그대로 urlsafe_b64decode 하면 binascii.Error("Incorrect padding")로 크래시한다.
+    길이를 4의 배수로 맞춰 안전하게 디코딩한다.
+    """
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
 
 
 class GmailClient:
@@ -240,7 +289,7 @@ class GmailClient:
         while len(messages) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(messages), 100),
+                "maxResults": min(max_results - len(messages), 500),  # Gmail list 최대 500
                 "includeSpamTrash": include_spam_trash,
             }
             if query:
@@ -264,6 +313,11 @@ class GmailClient:
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
+
+        # 서버가 maxResults 를 초과 반환할 수 있으므로(문서상 maxResults 는 페이지 크기
+        # 힌트이며, 실제 maxResults=1 에도 전체를 반환하는 사례가 보고됨) 계약대로 상한을
+        # 강제한다. 캐시 히트 경로(cached[:max_results])와 동일하게 맞춘다.
+        messages = messages[:max_results]
 
         # Cache the results
         if use_cache and self._cache and messages:
@@ -289,10 +343,13 @@ class GmailClient:
         """
         # Check cache first (only for full/metadata formats)
         if use_cache and self._cache and format in ("full", "metadata"):
+            # 캐시에는 full 만 저장하므로(아래) 메타데이터 요청도 full 캐시(메시지 TTL 24h)로
+            # 충족한다. metadata_only=True 로 조회하면 1h TTL 때문에 1~24h 사이 유효한 full
+            # 캐시를 놓쳐 불필요하게 재요청하게 된다.
             cached = self._cache.get_message(
                 self.account_name,
                 message_id,
-                metadata_only=(format == "metadata"),
+                metadata_only=False,
             )
             if cached is not None:
                 logger.debug(f"Cache hit for message: {message_id}")
@@ -317,8 +374,11 @@ class GmailClient:
 
         parsed = self._parse_message(result)
 
-        # Cache the result
-        if use_cache and self._cache and format in ("full", "metadata"):
+        # full 만 캐시한다. metadata 응답은 본문 data 가 없어 parsed["body"]가 비는데,
+        # metadata/full 이 같은 캐시 파일을 공유하므로 metadata 를 저장하면 이후 full 조회가
+        # 빈 본문을 돌려받는 오염이 생긴다. full 은 metadata 의 상위집합이라 metadata 조회도
+        # full 캐시로 안전하게 충족된다.
+        if use_cache and self._cache and format == "full":
             self._cache.set_message(self.account_name, message_id, parsed)
 
         return parsed
@@ -326,10 +386,14 @@ class GmailClient:
     def _parse_message(self, msg: dict) -> dict:
         """API 응답을 파싱하여 읽기 쉬운 형식으로 변환."""
         headers = {}
+        # from/to/cc/subject 는 비ASCII(한글 등)면 RFC2047 인코딩되어 오므로 디코딩한다.
+        # date/message-id 는 ASCII 라 원본 유지.
+        _decode_names = ("from", "to", "cc", "bcc", "subject")
         for header in msg.get("payload", {}).get("headers", []):
             name = header["name"].lower()
             if name in ("from", "to", "cc", "bcc", "subject", "date", "message-id"):
-                headers[name] = header["value"]
+                value = header["value"]
+                headers[name] = _decode_mime_header(value) if name in _decode_names else value
 
         body = ""
         attachments = []
@@ -341,7 +405,10 @@ class GmailClient:
             "id": msg["id"],
             "thread_id": msg["threadId"],
             "label_ids": msg.get("labelIds", []),
-            "snippet": msg.get("snippet", ""),
+            # Gmail snippet 은 HTML 이스케이프되어 오므로(&#39; &amp; 등) 언이스케이프해
+            # 리포트/요약에 사람이 읽기 좋은 텍스트로 표시한다.
+            # `or ""`: snippet 키가 null 로 와도(None) html.unescape 크래시를 막는다.
+            "snippet": html.unescape(msg.get("snippet") or ""),
             "from": headers.get("from", ""),
             "to": headers.get("to", ""),
             "cc": headers.get("cc", ""),
@@ -357,38 +424,48 @@ class GmailClient:
     def _extract_body_and_attachments(
         self, payload: dict, message_id: str
     ) -> tuple[str, list[dict]]:
-        """메시지 본문과 첨부파일 추출."""
-        body = ""
-        attachments = []
+        """메시지 본문과 첨부파일 추출.
 
+        본문은 메시지 트리 전체에서 text/plain 을 우선 선택한다(순서·중첩 무관). 위치 기반
+        휴리스틱(first/last-wins)은 html 이 plain 앞에 오는 구조에서 틀리므로, plain 과 html 을
+        따로 모아 plain 이 하나라도 있으면 그 첫 번째를, 없으면 첫 html 을 본문으로 쓴다.
+        """
+        plains: list[str] = []
+        htmls: list[str] = []
+        attachments: list[dict] = []
+        self._collect_body_parts(payload, plains, htmls, attachments)
+        body = plains[0] if plains else (htmls[0] if htmls else "")
+        return body, attachments
+
+    def _collect_body_parts(self, payload: dict, plains: list, htmls: list,
+                            attachments: list) -> None:
+        """메시지 트리를 재귀 순회하며 plain/html 본문과 첨부를 수집한다."""
         mime_type = payload.get("mimeType", "")
-
         if mime_type.startswith("multipart/"):
             for part in payload.get("parts", []):
-                part_body, part_attachments = self._extract_body_and_attachments(
-                    part, message_id
-                )
-                if part_body:
-                    body = part_body
-                attachments.extend(part_attachments)
-        else:
-            if payload.get("filename"):
-                attachments.append(
-                    {
-                        "filename": payload["filename"],
-                        "mime_type": mime_type,
-                        "size": payload.get("body", {}).get("size", 0),
-                        "attachment_id": payload.get("body", {}).get("attachmentId"),
-                    }
-                )
-            elif mime_type in ("text/plain", "text/html"):
-                data = payload.get("body", {}).get("data", "")
-                if data:
-                    decoded = base64.urlsafe_b64decode(data).decode("utf-8")
-                    if mime_type == "text/plain" or not body:
-                        body = decoded
-
-        return body, attachments
+                self._collect_body_parts(part, plains, htmls, attachments)
+        elif payload.get("filename"):
+            attachments.append(
+                {
+                    "filename": payload["filename"],
+                    "mime_type": mime_type,
+                    "size": payload.get("body", {}).get("size", 0),
+                    "attachment_id": payload.get("body", {}).get("attachmentId"),
+                }
+            )
+        elif mime_type in ("text/plain", "text/html"):
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                # 본문 charset 은 utf-8 이 아닐 수 있다(euc-kr/cp949 한국 메일이 흔함).
+                # 파트의 Content-Type charset 으로 디코딩하고, 없거나 알 수 없으면 utf-8.
+                # errors="replace" 로 비정상 바이트가 전체 파싱을 죽이지 않게 한다.
+                charset = _charset_from_headers(payload.get("headers", [])) or "utf-8"
+                raw_bytes = _b64url_decode(data)
+                try:
+                    decoded = raw_bytes.decode(charset, errors="replace")
+                except LookupError:  # 알 수 없는 charset 이름
+                    decoded = raw_bytes.decode("utf-8", errors="replace")
+                (plains if mime_type == "text/plain" else htmls).append(decoded)
 
     def get_attachment(self, message_id: str, attachment_id: str) -> bytes:
         """첨부파일 다운로드.
@@ -407,7 +484,7 @@ class GmailClient:
             .get(userId="me", messageId=message_id, id=attachment_id)
             .execute()
         )
-        return base64.urlsafe_b64decode(result["data"])
+        return _b64url_decode(result["data"])
 
     def send_message(
         self,
@@ -445,15 +522,15 @@ class GmailClient:
         else:
             message = MIMEText(body, "html" if html else "plain", "utf-8")
 
-        message["to"] = to
-        message["subject"] = subject
+        message["to"] = _sanitize_header(to)
+        message["subject"] = _sanitize_header(subject)
         if cc:
-            message["cc"] = cc
+            message["cc"] = _sanitize_header(cc)
         if bcc:
-            message["bcc"] = bcc
+            message["bcc"] = _sanitize_header(bcc)
         if reply_to_message_id:
-            message["In-Reply-To"] = reply_to_message_id
-            message["References"] = reply_to_message_id
+            message["In-Reply-To"] = _sanitize_header(reply_to_message_id)
+            message["References"] = _sanitize_header(reply_to_message_id)
 
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
@@ -500,7 +577,14 @@ class GmailClient:
             data = f.read()
 
         if main_type == "text":
-            attachment = MIMEText(data.decode("utf-8"), _subtype=sub_type)
+            try:
+                attachment = MIMEText(data.decode("utf-8"), _subtype=sub_type)
+            except UnicodeDecodeError:
+                # 비UTF-8 텍스트 파일은 MIMEText 로 디코딩하면 크래시한다. 바이트를 보존하는
+                # 바이너리(base64) 첨부로 폴백해 전송이 실패하지 않게 한다.
+                attachment = MIMEBase(main_type, sub_type)
+                attachment.set_payload(data)
+                encoders.encode_base64(attachment)
         elif main_type == "image":
             attachment = MIMEImage(data, _subtype=sub_type)
         elif main_type == "audio":
@@ -554,9 +638,11 @@ class GmailClient:
         # Record quota usage
         self._record_quota(QuotaUnit.MESSAGES_MODIFY)
 
-        # Invalidate cache for this message
+        # 메시지 캐시와 목록 캐시를 모두 무효화한다. 목록은 라벨(UNREAD/INBOX 등)로
+        # 필터되므로 라벨 변경 후 목록 캐시가 stale 해진다(send_message 와 동일한 패턴).
         if self._cache:
             self._cache.invalidate_message(self.account_name, message_id)
+            self._cache.invalidate_lists(self.account_name)
 
         return {
             "id": result["id"],
@@ -672,7 +758,7 @@ class GmailClient:
         while len(threads) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(threads), 100),
+                "maxResults": min(max_results - len(threads), 500),  # Gmail list 최대 500
             }
             if query:
                 kwargs["q"] = query
@@ -809,6 +895,10 @@ class GmailClient:
             self.service.users().labels().create(userId="me", body=body).execute()
         )
 
+        # 라벨 목록 캐시(1h TTL)를 무효화해 새 라벨이 즉시 반영되게 한다.
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": result["id"],
             "name": result["name"],
@@ -841,6 +931,9 @@ class GmailClient:
             .execute()
         )
 
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": updated["id"],
             "name": updated["name"],
@@ -850,6 +943,10 @@ class GmailClient:
     def delete_label(self, label_id: str) -> dict:
         """라벨 삭제."""
         self.service.users().labels().delete(userId="me", id=label_id).execute()
+
+        if self._cache:
+            self._cache.invalidate_labels(self.account_name)
+
         return {
             "id": label_id,
             "status": "deleted",
@@ -867,7 +964,7 @@ class GmailClient:
         while len(drafts) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(drafts), 100),
+                "maxResults": min(max_results - len(drafts), 500),  # Gmail list 최대 500
             }
             if page_token:
                 kwargs["pageToken"] = page_token
@@ -920,12 +1017,12 @@ class GmailClient:
             생성된 초안 정보
         """
         message = MIMEText(body, "html" if html else "plain", "utf-8")
-        message["to"] = to
-        message["subject"] = subject
+        message["to"] = _sanitize_header(to)
+        message["subject"] = _sanitize_header(subject)
         if cc:
-            message["cc"] = cc
+            message["cc"] = _sanitize_header(cc)
         if bcc:
-            message["bcc"] = bcc
+            message["bcc"] = _sanitize_header(bcc)
 
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
 
@@ -950,6 +1047,10 @@ class GmailClient:
             .send(userId="me", body={"id": draft_id})
             .execute()
         )
+
+        # 발송으로 메시지 목록이 바뀌므로 목록 캐시를 무효화한다(send_message 와 동일).
+        if self._cache:
+            self._cache.invalidate_lists(self.account_name)
 
         return {
             "id": result["id"],
@@ -1187,7 +1288,7 @@ class ADCGmailClient:
         while len(messages) < max_results:
             kwargs = {
                 "userId": "me",
-                "maxResults": min(max_results - len(messages), 100),
+                "maxResults": min(max_results - len(messages), 500),  # Gmail list 최대 500
                 "includeSpamTrash": include_spam_trash,
             }
             if query:
@@ -1206,7 +1307,7 @@ class ADCGmailClient:
             if not page_token:
                 break
 
-        return messages
+        return messages[:max_results]  # 서버 초과 반환 대비 상한 강제
 
     def get_profile(self) -> dict:
         result = self.service.users().getProfile(userId="me").execute()

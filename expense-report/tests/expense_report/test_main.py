@@ -1,42 +1,43 @@
 import json
 import os
-import tempfile
 
 from expense_report.main import run_pipeline
-
-TEST_FOLDER = "/Users/ykh/Documents/drive/개인경비 지출결의서/2026/202603"
-
-
-def test_run_pipeline_creates_xlsx():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        sub = os.path.join(tmpdir, "202603")
-        os.makedirs(sub)
-        xls_src = os.path.join(TEST_FOLDER, "간편서비스_승인내역.xls")
-        os.symlink(xls_src, os.path.join(sub, "간편서비스_승인내역.xls"))
-        result = run_pipeline(sub, notion_data=None)
-        assert os.path.exists(result["created_file"])
-        assert isinstance(result["manual_items"], list)
-        assert result["total_count"] > 0
+from fixtures import ANCHOR_AMOUNT, ANCHOR_DATE, build_sample_xls
 
 
-def test_run_pipeline_with_notion_data():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        sub = os.path.join(tmpdir, "202603")
-        os.makedirs(sub)
-        os.symlink(os.path.join(TEST_FOLDER, "간편서비스_승인내역.xls"), os.path.join(sub, "간편서비스_승인내역.xls"))
-        notion_data = {"entries": [{"date": "2026-03-27", "amount": 27200, "companions": ["양경희", "김보민"]}]}
-        result = run_pipeline(sub, notion_data=notion_data)
-        assert result["classified_summary"].get("rule_1", 0) >= 1
+def _make_folder(tmp_path):
+    """'202603' 폴더에 합성 승인내역 .xls 를 넣고 폴더 경로를 반환한다."""
+    sub = tmp_path / "202603"
+    sub.mkdir()
+    build_sample_xls(str(sub / "간편서비스_승인내역.xls"))
+    return str(sub)
 
 
-def test_run_pipeline_output_json():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        sub = os.path.join(tmpdir, "202603")
-        os.makedirs(sub)
-        os.symlink(os.path.join(TEST_FOLDER, "간편서비스_승인내역.xls"), os.path.join(sub, "간편서비스_승인내역.xls"))
-        result = run_pipeline(sub, notion_data=None)
-        json_str = json.dumps(result, ensure_ascii=False)
-        parsed = json.loads(json_str)
-        assert "created_file" in parsed
-        assert "manual_items" in parsed
-        assert "taxi_receipt_warning" in parsed
+def test_run_pipeline_creates_xlsx(tmp_path, sample_template):
+    sub = _make_folder(tmp_path)
+    result = run_pipeline(sub, notion_data=None, template_path=sample_template)
+    assert os.path.exists(result["created_file"])
+    assert isinstance(result["manual_items"], list)
+    assert result["total_count"] > 0
+
+
+def test_run_pipeline_with_notion_data(tmp_path, sample_template):
+    sub = _make_folder(tmp_path)
+    # 앵커 거래(ANCHOR_DATE/ANCHOR_AMOUNT)와 매칭되어 rule_1(팀 커피)이 떨어져야 한다.
+    notion_data = {"entries": [{
+        "date": ANCHOR_DATE.replace(".", "-"),
+        "amount": ANCHOR_AMOUNT,
+        "companions": ["양경희", "김보민"],
+    }]}
+    result = run_pipeline(sub, notion_data=notion_data, template_path=sample_template)
+    assert result["classified_summary"].get("rule_1", 0) >= 1
+
+
+def test_run_pipeline_output_json(tmp_path, sample_template):
+    sub = _make_folder(tmp_path)
+    result = run_pipeline(sub, notion_data=None, template_path=sample_template)
+    json_str = json.dumps(result, ensure_ascii=False)
+    parsed = json.loads(json_str)
+    assert "created_file" in parsed
+    assert "manual_items" in parsed
+    assert "taxi_receipt_warning" in parsed

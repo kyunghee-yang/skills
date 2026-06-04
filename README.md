@@ -1,5 +1,7 @@
 # Claude Code Skills
 
+[![CI](https://github.com/kyunghee-yang/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/kyunghee-yang/skills/actions/workflows/ci.yml)
+
 Claude Code에서 반복 업무를 자동화하는 커스텀 스킬 모음.
 
 ## 스킬 목록
@@ -12,6 +14,7 @@ Claude Code에서 반복 업무를 자동화하는 커스텀 스킬 모음.
 | [review-resume](#review-resume) | 이력서 PDF 평가 및 면접 질문지 생성 | - |
 | [review-codingtest](#review-codingtest) | 코딩테스트 PDF 코드 품질 평가 | - |
 | [expense-report](#expense-report) | 법인카드 지출결의서 엑셀 자동 생성 | Notion MCP, Python 3.9+ |
+| [autoresearch](#autoresearch) | 외부 리서치 + A/B 실험 기반 자가개선 무한 루프 | Python 3.9+, (선택) GitHub MCP / 브라우저 |
 
 ---
 
@@ -116,6 +119,24 @@ Gmail API OAuth 인증이 필요합니다. 최초 실행 시 브라우저 인증
 /expense-capture 202603
 ```
 
+## autoresearch
+
+외부 리서치와 A/B 실험을 결합해 코드·스킬·문서를 자율적으로 개선하는 자가개선 루프. 매 사이클마다
+리서치→후보생성→A/B평가→채택→검증→커밋푸시를 수행하고, **더 나은 후보만** 채택한다. 사용자가
+명시적으로 "멈춰"라고 하기 전까지 한 번에 하나의 작은 개선을 반복한다.
+
+```
+/autoresearch
+"오토리서치 돌려줘"
+"멈추라고 할 때까지 알아서 퀄리티 높여"
+"GitHub 프로젝트 찾아서 보완하고 A/B로 개선해"
+```
+
+- 모든 채택은 A/B 증거에 근거 (측정 없는 변경 금지)
+- 진행 상태는 `.autoresearch/ledger.json` 원장에 기록 (세션 간 이어서 작업)
+- 앱/UI 변경은 cmux 브라우저+codex computer-use 또는 Playwright로 직접 클릭 검증
+- 단발성 리서치는 `deep-research`, 단순 리뷰는 `code-review` 스킬을 사용
+
 ---
 
 ## 설치
@@ -123,6 +144,19 @@ Gmail API OAuth 인증이 필요합니다. 최초 실행 시 브라우저 인증
 ```bash
 git clone git@github.com:kyunghee-yang/skills.git ~/.claude/skills
 ```
+
+## 테스트
+
+스킬별 테스트 스위트가 있으며, 통합 러너로 한 번에 실행할 수 있습니다.
+
+```bash
+./run_tests.sh          # 전체 스위트 (expense-report / task-check / autoresearch)
+./run_tests.sh -q       # pytest 옵션 전달
+```
+
+개별 스킬은 해당 디렉터리에서 `python3 -m pytest`로 실행합니다. 모든 테스트는 외부 파일 없이
+합성 픽스처로 동작하므로 신선한 클론·CI에서 그대로 통과합니다. push/PR 시 GitHub Actions가
+동일 스위트를 자동 실행합니다(`.github/workflows/ci.yml`).
 
 ## 필수 환경
 

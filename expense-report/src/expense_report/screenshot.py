@@ -4,6 +4,8 @@ import subprocess
 import time
 from typing import Optional
 
+from expense_report import config
+
 
 def capture_summary_sheet(xlsx_path: str, output_png_path: str) -> bool:
     """Excel에서 요약 시트를 열고 캡처하여 PNG로 저장."""
@@ -65,8 +67,13 @@ def capture_summary_sheet(xlsx_path: str, output_png_path: str) -> bool:
         return False
 
 
-def find_xlsx_in_folder(folder_path: str) -> Optional[str]:
-    pattern = os.path.join(folder_path, "*법인카드*양경희*.xlsx")
+def find_xlsx_in_folder(folder_path: str, drafter_name: Optional[str] = None) -> Optional[str]:
+    # 산출물 파일명은 OUTPUT_FILENAME_TEMPLATE(=..._법인카드_하나_{기안자}.xlsx)을 따르므로
+    # 기안자명을 config에서 받아 패턴을 만든다(과거엔 '양경희'가 하드코딩되어 타 사용자
+    # 파일을 못 찾았다).
+    # config.DRAFTER_NAME 을 호출 시점에 읽는다(import 시 값 복사하면 config 갱신이 반영 안 됨).
+    name = drafter_name or config.DRAFTER_NAME
+    pattern = os.path.join(folder_path, f"*법인카드*{name}*.xlsx")
     matches = glob.glob(pattern)
     if not matches:
         return None

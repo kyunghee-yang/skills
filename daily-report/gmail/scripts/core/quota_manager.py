@@ -230,6 +230,9 @@ class QuotaManager:
             일일 한도 도달 시 True
         """
         with self._lock:
+            # 다른 public 메서드와 동일하게 먼저 리셋을 반영해야, 자정 경과 후
+            # 어제 daily_units 로 stale True 를 반환하는 것을 막는다.
+            self._reset_if_needed(user)
             usage = self._get_or_create_usage(user)
             return usage.daily_units >= self.daily_limit
 

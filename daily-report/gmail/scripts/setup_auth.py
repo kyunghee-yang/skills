@@ -126,7 +126,7 @@ def setup_auth(
     save_accounts_config(base_path, config)
 
     print()
-    print(f"✅ 인증 완료!")
+    print("✅ 인증 완료!")
     print(f"   계정명: {account_name}")
     print(f"   이메일: {email}")
     print(f"   토큰: {token_path}")

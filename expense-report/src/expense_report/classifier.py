@@ -21,13 +21,26 @@ class Classification:
     manual_fields: list[str] = field(default_factory=list)
 
 
-def _to_minutes(time_str: str) -> int:
-    parts = time_str.split(":")
-    return int(parts[0]) * 60 + int(parts[1])
+def _to_minutes(time_str: str):
+    """"HH:MM" → 분. 빈 값/형식 오류면 None (시간 기반 분류 대상에서 제외).
+
+    실데이터에는 시간이 비거나 깨진 거래가 섞일 수 있다. 과거에는 여기서 ValueError가
+    나 파이프라인 전체가 죽었으므로, 파싱 실패를 None으로 흡수해 호출부가 안전하게
+    처리하도록 한다.
+    """
+    parts = (time_str or "").split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[0]) * 60 + int(parts[1])
+    except ValueError:
+        return None
 
 
 def _is_in_range(time_str: str, minute_range: tuple) -> bool:
     minutes = _to_minutes(time_str)
+    if minutes is None:
+        return False
     return minute_range[0] <= minutes < minute_range[1]
 
 

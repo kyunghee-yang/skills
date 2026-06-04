@@ -1,0 +1,216 @@
+"""gmail_client 의 순수 파싱 로직(_parse_message, _extract_body_and_attachments) 테스트.
+
+API/네트워크 없이 합성 메시지 dict 로 검증한다. __init__(자격증명 로드)을 우회하기 위해
+GmailClient.__new__ 로 인스턴스를 만든다. 모듈 import 에는 google 스택이 필요하다.
+"""
+import base64
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "gmail", "scripts"))
+
+google = pytest.importorskip("googleapiclient")  # google 스택 없으면 skip
+from gmail_client import GmailClient  # noqa: E402
+
+
+def _client():
+    return GmailClient.__new__(GmailClient)  # __init__ 우회
+
+
+def _b64(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode()
+
+
+def test_extract_plain_body_utf8():
+    c = _client()
+    payload = {"mimeType": "text/plain", "body": {"data": _b64("안녕하세요".encode("utf-8"))}}
+    body, att = c._extract_body_and_attachments(payload, "mid")
+    assert body == "안녕하세요"
+    assert att == []
+
+
+def test_extract_non_utf8_body_does_not_crash():
+    # 회귀: 비UTF-8 바이트가 섞여도 UnicodeDecodeError 없이 본문을 돌려준다.
+    c = _client()
+    payload = {"mimeType": "text/plain", "body": {"data": _b64(bytes([0xff, 0xfe, 0x41]))}}
+    body, att = c._extract_body_and_attachments(payload, "mid")
+    assert isinstance(body, str)  # 크래시 없이 문자열 반환
+    assert "A" in body            # 유효 바이트는 보존
+
+
+def test_extract_attachment_metadata():
+    c = _client()
+    payload = {
+        "mimeType": "image/png",
+        "filename": "photo.png",
+        "body": {"size": 1234, "attachmentId": "att1"},
+    }
+    body, att = c._extract_body_and_attachments(payload, "mid")
+    assert body == ""
+    assert att == [{"filename": "photo.png", "mime_type": "image/png",
+                    "size": 1234, "attachment_id": "att1"}]
+
+
+def test_extract_multipart_collects_body_and_attachments():
+    c = _client()
+    payload = {
+        "mimeType": "multipart/mixed",
+        "parts": [
+            {"mimeType": "text/plain", "body": {"data": _b64("hello".encode())}},
+            {"mimeType": "application/pdf", "filename": "doc.pdf",
+             "body": {"size": 10, "attachmentId": "a2"}},
+        ],
+    }
+    body, att = c._extract_body_and_attachments(payload, "mid")
+    assert body == "hello"
+    assert len(att) == 1 and att[0]["filename"] == "doc.pdf"
+
+
+def test_parse_message_fills_defaults_and_headers():
+    c = _client()
+    msg = {
+        "id": "m1", "threadId": "t1", "labelIds": ["INBOX"], "snippet": "snip",
+        "payload": {
+            "mimeType": "text/plain",
+            "headers": [
+                {"name": "From", "value": "a@b.com"},
+                {"name": "Subject", "value": "제목"},
+            ],
+            "body": {"data": _b64("본문".encode())},
+        },
+    }
+    out = c._parse_message(msg)
+    assert out["from"] == "a@b.com"
+    assert out["subject"] == "제목"
+    assert out["body"] == "본문"
+    assert out["cc"] == ""              # 누락 헤더 기본값
+    assert out["label_ids"] == ["INBOX"]
+
+
+def test_parse_message_default_subject_when_missing():
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "headers": [], "body": {}}}
+    out = c._parse_message(msg)
+    assert out["subject"] == "(제목 없음)"
+
+
+def test_snippet_is_html_unescaped():
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "headers": [],
+                       "body": {}},
+           "snippet": "Tom&#39;s &quot;report&quot; &amp; notes"}
+    out = c._parse_message(msg)
+    assert out["snippet"] == 'Tom\'s "report" & notes'
+
+
+def test_rfc2047_encoded_headers_decoded():
+    # 한글 제목/발신자가 RFC2047 인코딩으로 와도 디코딩되어야 한다(한국 사용자 핵심)
+    import base64
+    from email.header import Header
+    subj = Header("안녕하세요 보고서", "utf-8").encode()
+    frm = "=?UTF-8?B?" + base64.b64encode("홍길동".encode()).decode() + "?= <a@b.com>"
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "body": {},
+                       "headers": [{"name": "Subject", "value": subj},
+                                   {"name": "From", "value": frm}]}}
+    out = c._parse_message(msg)
+    assert out["subject"] == "안녕하세요 보고서"
+    assert "홍길동" in out["from"] and "a@b.com" in out["from"]
+
+
+def test_ascii_headers_unchanged():
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1",
+           "payload": {"mimeType": "text/plain", "body": {},
+                       "headers": [{"name": "Subject", "value": "Plain subject"},
+                                   {"name": "From", "value": "Bob <bob@x.com>"}]}}
+    out = c._parse_message(msg)
+    assert out["subject"] == "Plain subject"
+    assert out["from"] == "Bob <bob@x.com>"
+
+
+def test_body_decoded_with_euckr_charset():
+    # euc-kr 한글 본문이 Content-Type charset 으로 정상 디코딩되어야 한다
+    c = _client()
+    data = base64.urlsafe_b64encode("안녕하세요".encode("euc-kr")).decode()
+    payload = {"mimeType": "text/plain",
+               "headers": [{"name": "Content-Type", "value": "text/plain; charset=\"euc-kr\""}],
+               "body": {"data": data}}
+    body, _ = c._extract_body_and_attachments(payload, "mid")
+    assert body == "안녕하세요"
+
+
+def test_body_defaults_utf8_when_no_charset():
+    c = _client()
+    data = base64.urlsafe_b64encode("hi 안녕".encode("utf-8")).decode()
+    payload = {"mimeType": "text/plain", "headers": [], "body": {"data": data}}
+    body, _ = c._extract_body_and_attachments(payload, "mid")
+    assert body == "hi 안녕"
+
+
+def test_charset_from_headers_helper():
+    import gmail_client as g
+    hs = [{"name": "Content-Type", "value": "text/html; charset=UTF-8"}]
+    assert g._charset_from_headers(hs) == "UTF-8"
+    assert g._charset_from_headers([]) is None
+
+
+def _part(mime, text):
+    return {"mimeType": mime,
+            "headers": [{"name": "Content-Type", "value": mime + "; charset=utf-8"}],
+            "body": {"data": base64.urlsafe_b64encode(text.encode()).decode()}}
+
+
+def test_multipart_alternative_prefers_plain_text():
+    c = _client()
+    payload = {"mimeType": "multipart/alternative",
+               "parts": [_part("text/plain", "안녕 평문"),
+                         _part("text/html", "<div>안녕 <b>HTML</b></div>")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "안녕 평문"  # html 태그가 아닌 plain 선택
+
+
+def test_multipart_html_only_falls_back():
+    c = _client()
+    payload = {"mimeType": "multipart/alternative",
+               "parts": [_part("text/html", "<p>HTML 전용</p>")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "<p>HTML 전용</p>"  # plain 없으면 html 폴백
+
+
+def test_snippet_null_does_not_crash():
+    # 회귀: "snippet": null(None) 이어도 크래시 없이 빈 문자열
+    c = _client()
+    msg = {"id": "m1", "threadId": "t1", "snippet": None,
+           "payload": {"mimeType": "text/plain", "headers": [], "body": {}}}
+    out = c._parse_message(msg)
+    assert out["snippet"] == ""
+
+
+def test_multipart_prefers_plain_even_when_html_first():
+    # 회귀: html 파트가 plain 보다 먼저 와도 plain 을 본문으로 선택(위치 무관)
+    c = _client()
+    payload = {"mimeType": "multipart/mixed",
+               "parts": [_part("text/html", "<p>HTML 먼저</p>"),
+                         _part("text/plain", "평문 나중")]}
+    body, _ = c._extract_body_and_attachments(payload, "m")
+    assert body == "평문 나중"
+
+
+def test_multipart_nested_alternative_prefers_plain():
+    # 중첩: mixed[ alternative[plain, html], pdf ] → plain 선택 + 첨부 수집
+    c = _client()
+    payload = {"mimeType": "multipart/mixed", "parts": [
+        {"mimeType": "multipart/alternative",
+         "parts": [_part("text/plain", "중첩 평문"), _part("text/html", "<b>중첩 html</b>")]},
+        {"mimeType": "application/pdf", "filename": "a.pdf",
+         "body": {"size": 9, "attachmentId": "x"}},
+    ]}
+    body, att = c._extract_body_and_attachments(payload, "m")
+    assert body == "중첩 평문"
+    assert len(att) == 1 and att[0]["filename"] == "a.pdf"

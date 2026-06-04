@@ -23,6 +23,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from typing import Callable, Optional, TypeVar, Any
 
@@ -66,13 +67,52 @@ def calculate_delay(
     Returns:
         계산된 지연 시간 (초)
     """
-    delay = min(base_delay * (exponential_base**attempt), max_delay)
+    delay = base_delay * (exponential_base**attempt)
 
     if jitter:
         # 0.5 ~ 1.5 범위의 지터 추가
         delay *= 0.5 + random.random()
 
-    return delay
+    # max_delay 는 상한 계약이므로 지터까지 반영한 최종 값을 캡한다.
+    # (과거에는 캡을 지터 이전에 적용해 결과가 max_delay 를 최대 1.5배 초과했다.)
+    return min(delay, max_delay)
+
+
+def retry_after_seconds(error: Exception) -> Optional[float]:
+    """오류 응답의 Retry-After 헤더(초)를 반환한다. 없거나 파싱 불가면 None.
+
+    Google API 는 429/503 에서 Retry-After 를 줄 수 있고, 모범사례는 지수 백오프보다 이
+    값을 우선 존중하는 것이다(서버가 알려준 회복 시점). 정수 초만 해석하고, HTTP-date 형식이나
+    음수/비정상은 무시한다.
+    """
+    resp = getattr(error, "resp", None)
+    if resp is None:
+        return None
+    # httplib2 Response 는 헤더 키가 소문자인 dict 류
+    try:
+        value = resp.get("retry-after")
+    except AttributeError:
+        value = None
+    if value is None:
+        return None
+    # 형식 1: delay-seconds (정수 초)
+    try:
+        secs = float(value)
+        return secs if secs >= 0 else None
+    except (ValueError, TypeError):
+        pass
+    # 형식 2: HTTP-date (RFC 7231) → 지금부터 그 시점까지의 초
+    try:
+        from email.utils import parsedate_to_datetime
+
+        when = parsedate_to_datetime(str(value))
+        if when is None:
+            return None
+        now = datetime.now(when.tzinfo) if when.tzinfo else datetime.now()
+        delta = (when - now).total_seconds()
+        return delta if delta >= 0 else 0.0
+    except (TypeError, ValueError):
+        return None
 
 
 def is_retryable_error(error: Exception) -> bool:
@@ -152,13 +192,18 @@ def exponential_backoff(
                         )
                         raise
 
-                    delay = calculate_delay(
-                        attempt,
-                        base_delay,
-                        max_delay,
-                        exponential_base,
-                        jitter,
-                    )
+                    # 서버가 Retry-After 를 줬으면 그 값을 우선 존중(상한 적용)한다.
+                    ra = retry_after_seconds(e)
+                    if ra is not None:
+                        delay = min(ra, max_delay)
+                    else:
+                        delay = calculate_delay(
+                            attempt,
+                            base_delay,
+                            max_delay,
+                            exponential_base,
+                            jitter,
+                        )
 
                     if on_retry:
                         on_retry(attempt, e, delay)
@@ -168,7 +213,7 @@ def exponential_backoff(
                         f"HTTP {e.resp.status}, {delay:.1f}초 대기"
                     )
                     time.sleep(delay)
-                except Exception as e:
+                except Exception:
                     # HttpError가 아닌 예외는 그대로 발생
                     raise
 
@@ -259,13 +304,17 @@ class RetryableOperation:
         if self.attempt >= self.config.max_retries:
             raise error
 
-        delay = calculate_delay(
-            self.attempt,
-            self.config.base_delay,
-            self.config.max_delay,
-            self.config.exponential_base,
-            self.config.jitter,
-        )
+        ra = retry_after_seconds(error)
+        if ra is not None:
+            delay = min(ra, self.config.max_delay)
+        else:
+            delay = calculate_delay(
+                self.attempt,
+                self.config.base_delay,
+                self.config.max_delay,
+                self.config.exponential_base,
+                self.config.jitter,
+            )
 
         logger.warning(
             f"재시도 {self.attempt + 1}/{self.config.max_retries}: "

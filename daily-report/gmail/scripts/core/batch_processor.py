@@ -14,13 +14,11 @@ Reference:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from googleapiclient.discovery import Resource
-from googleapiclient.http import BatchHttpRequest
 
 from .quota_manager import QuotaManager, QuotaUnit, get_quota_manager
-from .retry_handler import exponential_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +54,10 @@ class BatchProcessor:
         )
     """
 
-    MAX_BATCH_SIZE = 50  # Gmail API 최대 배치 크기
+    MAX_BATCH_SIZE = 50  # batch HTTP 요청(개별 get/trash/delete)의 최대 묶음 크기
+    # batchModify 는 batch HTTP 가 아니라 ids 배열을 받는 단일 호출이며 1회 1000개까지
+    # 허용된다. 50으로 쪼개면 호출·쿼터(호출당 50단위)를 ~20배 낭비하므로 별도 상한을 둔다.
+    MODIFY_BATCH_SIZE = 1000
     DEFAULT_DELAY = 0.5  # 배치 간 기본 지연 (초)
 
     def __init__(
@@ -78,7 +79,8 @@ class BatchProcessor:
         self.service = service
         self.quota_manager = quota_manager or get_quota_manager()
         self.user = user
-        self.batch_size = min(batch_size, self.MAX_BATCH_SIZE)
+        # 하한 1 강제: batch_size<=0 이면 range(0, n, 0) 가 ValueError 로 크래시한다.
+        self.batch_size = max(1, min(batch_size, self.MAX_BATCH_SIZE))
         self.delay = delay_between_batches
 
     # =========================================================================
@@ -108,15 +110,16 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            # results/errors 를 인자로 명시 바인딩한다(루프 변수 late-binding 회피, B023).
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append(response)
+                        results.append(response)
 
                 return callback
 
@@ -128,7 +131,7 @@ class BatchProcessor:
                     self.service.users()
                     .messages()
                     .get(userId="me", id=msg_id, format=format),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             # 할당량 확인 및 대기
@@ -175,8 +178,10 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(message_ids))
 
-        for i in range(0, len(message_ids), self.batch_size):
-            batch_ids = message_ids[i : i + self.batch_size]
+        # batchModify 는 1회 1000 ids 까지 허용 → 큰 청크로 호출·쿼터를 아낀다(batch_size 50 아님).
+        chunk = self.MODIFY_BATCH_SIZE
+        for i in range(0, len(message_ids), chunk):
+            batch_ids = message_ids[i : i + chunk]
 
             # 할당량 확인 및 대기
             units = QuotaUnit.MESSAGES_BATCH_MODIFY
@@ -206,12 +211,12 @@ class BatchProcessor:
                 })
                 logger.error(f"Batch modify failed: {e}")
 
-            # 진행 상황 콜백
+            # 진행 상황 콜백 (루프가 chunk 로 스텝하므로 chunk 로 보고해야 정확)
             if on_progress:
-                on_progress(min(i + self.batch_size, len(message_ids)), len(message_ids))
+                on_progress(min(i + chunk, len(message_ids)), len(message_ids))
 
-            # 다음 배치 전 지연
-            if i + self.batch_size < len(message_ids):
+            # 다음 배치 전 지연 (마지막 배치 후 불필요 sleep 방지 위해 chunk 기준)
+            if i + chunk < len(message_ids):
                 time.sleep(self.delay)
 
         return result
@@ -237,15 +242,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append({"id": msg_id, "status": "trashed"})
+                        results.append({"id": msg_id, "status": "trashed"})
 
                 return callback
 
@@ -254,7 +259,7 @@ class BatchProcessor:
             for msg_id in batch_ids:
                 batch.add(
                     self.service.users().messages().trash(userId="me", id=msg_id),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.MESSAGES_TRASH
@@ -299,15 +304,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(msg_id: str):
+            def callback_factory(msg_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "message_id": msg_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append({"id": msg_id, "status": "deleted"})
+                        results.append({"id": msg_id, "status": "deleted"})
 
                 return callback
 
@@ -316,7 +321,7 @@ class BatchProcessor:
             for msg_id in batch_ids:
                 batch.add(
                     self.service.users().messages().delete(userId="me", id=msg_id),
-                    callback=callback_factory(msg_id),
+                    callback=callback_factory(msg_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.MESSAGES_DELETE
@@ -365,15 +370,15 @@ class BatchProcessor:
             batch_results = []
             batch_errors = []
 
-            def callback_factory(thread_id: str):
+            def callback_factory(thread_id, results, errors):
                 def callback(request_id, response, exception):
                     if exception:
-                        batch_errors.append({
+                        errors.append({
                             "thread_id": thread_id,
                             "error": str(exception),
                         })
                     else:
-                        batch_results.append(response)
+                        results.append(response)
 
                 return callback
 
@@ -384,7 +389,7 @@ class BatchProcessor:
                     self.service.users()
                     .threads()
                     .get(userId="me", id=thread_id, format=format),
-                    callback=callback_factory(thread_id),
+                    callback=callback_factory(thread_id, batch_results, batch_errors),
                 )
 
             units = len(batch_ids) * QuotaUnit.THREADS_GET
@@ -435,7 +440,7 @@ class BatchProcessor:
                 .list(
                     userId="me",
                     q=query,
-                    maxResults=min(100, max_messages - len(message_ids)),
+                    maxResults=min(500, max_messages - len(message_ids)),  # Gmail list 최대 500
                     pageToken=page_token,
                 )
                 .execute()
@@ -447,6 +452,9 @@ class BatchProcessor:
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
+
+        # 서버가 maxResults 를 초과 반환할 수 있으므로 max_messages 상한을 강제한다.
+        message_ids = message_ids[:max_messages]
 
         if not message_ids:
             return BatchResult()
@@ -483,7 +491,7 @@ class BatchProcessor:
                 .list(
                     userId="me",
                     q=full_query,
-                    maxResults=min(100, max_messages - len(message_ids)),
+                    maxResults=min(500, max_messages - len(message_ids)),  # Gmail list 최대 500
                     pageToken=page_token,
                 )
                 .execute()
@@ -495,6 +503,9 @@ class BatchProcessor:
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
+
+        # 서버가 maxResults 를 초과 반환할 수 있으므로 max_messages 상한을 강제한다.
+        message_ids = message_ids[:max_messages]
 
         if not message_ids:
             return BatchResult()
