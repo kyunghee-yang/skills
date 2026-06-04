@@ -152,3 +152,13 @@ def test_batch_modify_splits_over_1000():
     res = _proc(svc).batch_modify_labels(ids, add_labels=["X"])
     assert res.succeeded == 2500
     assert len(svc.batch_modify_calls) == 3  # 1000,1000,500
+
+
+def test_batch_modify_progress_reports_chunk_not_batch_size():
+    # 회귀: 진행 콜백이 chunk(1000) 기준이라 1000건 1배치에서 1000/1000 보고
+    svc = _FakeService()
+    progress = []
+    ids = [str(i) for i in range(1000)]
+    _proc(svc, batch_size=50).batch_modify_labels(
+        ids, add_labels=["X"], on_progress=lambda cur, tot: progress.append((cur, tot)))
+    assert progress == [(1000, 1000)]  # 50/1000 아님

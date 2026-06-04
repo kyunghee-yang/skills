@@ -211,12 +211,12 @@ class BatchProcessor:
                 })
                 logger.error(f"Batch modify failed: {e}")
 
-            # 진행 상황 콜백
+            # 진행 상황 콜백 (루프가 chunk 로 스텝하므로 chunk 로 보고해야 정확)
             if on_progress:
-                on_progress(min(i + self.batch_size, len(message_ids)), len(message_ids))
+                on_progress(min(i + chunk, len(message_ids)), len(message_ids))
 
-            # 다음 배치 전 지연
-            if i + self.batch_size < len(message_ids):
+            # 다음 배치 전 지연 (마지막 배치 후 불필요 sleep 방지 위해 chunk 기준)
+            if i + chunk < len(message_ids):
                 time.sleep(self.delay)
 
         return result
